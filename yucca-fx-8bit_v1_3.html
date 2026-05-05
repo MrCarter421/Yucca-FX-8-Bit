@@ -55,11 +55,79 @@
   @media (min-width: 640px) {
     .top-bar { margin-left: -16px; margin-right: -16px; padding: 16px 16px 8px; }
   }
+  /* ===== MASTER CONTROLS + VU METER ===== */
   .scope-bar {
     background: var(--bg1); border: 2px solid var(--border); box-shadow: 4px 4px 0 0 var(--ink);
-    padding: 8px 10px; margin-top: 0;
+    padding: 8px 10px; margin-top: 0; position: relative;
   }
   .scope-bar .sub-label { margin-bottom: 4px; }
+  .scope-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
+  }
+  .scope-header .sub-label { margin-bottom: 0; flex-shrink: 0; }
+  .master-controls {
+    display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: nowrap;
+    min-width: 0; flex: 1; justify-content: flex-end;
+  }
+  .master-vol-wrap {
+    display: flex; align-items: center; gap: 6px; min-width: 110px; max-width: 180px; flex: 1;
+  }
+  .master-vol-label {
+    font-family: var(--pixel); font-size: 8px; color: var(--dim); flex-shrink: 0;
+  }
+  .master-vol-slider {
+    flex: 1; height: 16px; position: relative;
+    background: var(--ink); border: 2px solid var(--border);
+    cursor: pointer; touch-action: none;
+  }
+  .master-vol-fill {
+    height: 100%; background: var(--yellow); pointer-events: none;
+    transition: width 0.04s linear;
+  }
+  .master-vol-thumb {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 8px; height: 18px; background: var(--yellow);
+    border: 2px solid var(--ink); pointer-events: none;
+  }
+  .master-vol-value {
+    font-family: var(--term); font-size: 11px; color: var(--yellow); min-width: 30px;
+    text-align: right; flex-shrink: 0;
+  }
+  .vu-meter {
+    width: 100px; height: 16px; position: relative; flex-shrink: 0;
+    background: var(--ink); border: 2px solid var(--border);
+    /* GPU-friendly fill — gradient stays put while inner clip width changes */
+  }
+  .vu-meter-fill {
+    height: 100%; width: 0%; background: linear-gradient(90deg,
+      #3df56b 0%, #3df56b 60%, #ffec27 70%, #ffec27 85%, #ff3b4e 95%, #ff3b4e 100%);
+    pointer-events: none;
+    /* will-change tells the compositor to keep this on its own GPU layer */
+    will-change: width;
+  }
+  .vu-meter-peak {
+    position: absolute; top: 0; height: 100%; width: 2px;
+    background: var(--text); pointer-events: none;
+    will-change: left, opacity;
+  }
+  .clip-led {
+    width: 14px; height: 14px; flex-shrink: 0;
+    background: var(--bg3); border: 2px solid var(--border);
+    box-shadow: inset 0 0 4px var(--ink);
+    transition: background 0.08s, box-shadow 0.08s;
+  }
+  .clip-led.lit {
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red), inset 0 0 2px #fff;
+  }
+  .clip-label {
+    font-family: var(--pixel); font-size: 8px; color: var(--dim); flex-shrink: 0;
+  }
+  @media (max-width: 720px) {
+    .scope-header { flex-wrap: wrap; }
+    .master-controls { width: 100%; margin-left: 0; }
+    .master-vol-wrap { max-width: none; }
+  }
   .top-bar .header,
   .top-bar .status { margin-bottom: 8px; }
 
@@ -335,6 +403,82 @@
     color: var(--mute); font-size: 12px; line-height: 1.4;
   }
 
+  /* ===== EXPORT QUEUE ===== */
+  .queue-section {
+    margin-top: 4px; padding-top: 12px;
+    border-top: 2px dashed var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .queue-header {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .queue-count {
+    font-family: var(--pixel); font-size: 9px; color: var(--dim); letter-spacing: 0.05em;
+    margin-left: auto;
+  }
+  .queue-list {
+    display: flex; flex-direction: column; gap: 4px;
+    max-height: 180px; overflow-y: auto;
+    padding: 4px; background: var(--ink); border: 2px solid var(--border);
+  }
+  .queue-list-empty {
+    font-family: var(--term); font-size: 13px; color: var(--mute);
+    text-align: center; padding: 12px 4px;
+  }
+  .queue-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .queue-item-num {
+    font-family: var(--pixel); font-size: 9px; color: var(--yellow);
+    min-width: 24px; text-align: center;
+  }
+  .queue-item-name {
+    flex: 1; min-width: 0;
+    font-family: var(--term); font-size: 13px; color: var(--text);
+    background: var(--ink); border: 1px solid var(--border);
+    padding: 4px 6px; outline: none;
+  }
+  .queue-item-name:focus { border-color: var(--cyan); color: var(--cyan); }
+  .queue-item-remove {
+    width: 24px; height: 24px; flex-shrink: 0; padding: 0;
+    background: var(--bg3); border: 1px solid var(--border); cursor: pointer;
+    color: var(--text); font-family: var(--pixel); font-size: 11px;
+    line-height: 1;
+  }
+  .queue-item-remove:hover { background: var(--red); color: var(--ink); }
+  .batch-rename-row {
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .batch-rename-input {
+    flex: 1; min-width: 100px;
+    font-family: var(--term); font-size: 13px; color: var(--text);
+    background: var(--ink); border: 2px solid var(--border);
+    padding: 6px 8px; outline: none;
+  }
+  .batch-rename-input:focus { border-color: var(--cyan); color: var(--cyan); }
+  .queue-progress {
+    margin-top: 4px; font-family: var(--term); font-size: 12px; color: var(--cyan);
+  }
+  .queue-progress-bar {
+    height: 6px; background: var(--ink); border: 1px solid var(--border); margin-top: 4px;
+    overflow: hidden;
+  }
+  .queue-progress-fill {
+    height: 100%; background: var(--cyan); width: 0%; transition: width 0.15s linear;
+  }
+
+  /* ===== SEQUENCER RECORDING ROW ===== */
+  .seq-rec-row {
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .seq-rec-info {
+    font-family: var(--term); font-size: 11px; color: var(--mute);
+    margin-left: auto;
+  }
+
   .footer {
     margin-top: 16px; text-align: center; color: var(--mute); font-size: 13px;
     letter-spacing: 0.1em; padding-bottom: 20px;
@@ -461,7 +605,7 @@
     <!-- STATUS -->
     <div class="status">
       <span class="status-msg" id="statusMsg">&gt; READY. PRESS [SPACE] TO PLAY · [R] TO RANDOMIZE</span>
-      <span class="status-version">v1.0</span>
+      <span class="status-version">v1.3</span>
     </div>
 
     <!-- TOP OUTPUT WAVEFORM -->
@@ -645,13 +789,23 @@ function buildSound(ctx, p, dest, levelGain, startTime) {
   osc.connect(filter);
   filter.connect(ampGain);
 
-  /* ---- CIRCUIT BENT events: scheduled random parameter pokes ---- */
+  /* ---- CIRCUIT BENT events: scheduled random parameter pokes ----
+   * IMPORTANT: scheduling absolute setValueAtTime values during an in-progress
+   * exponentialRamp/linearRamp on the same param is undefined — in offline
+   * renders the ramp typically wins, eating the bent event silently. So we
+   * gate event scheduling to start AFTER the ADSR attack+decay ramps have
+   * landed at sustain (a static value), where setValueAtTime works reliably.
+   */
   if (p.circuitBent && p.circuitBent.enabled && p.circuitBent.intensity > 0.001) {
     const intensity = p.circuitBent.intensity;
     const rate = Math.max(1, p.circuitBent.rate || 12);
-    const eventCount = Math.max(1, Math.floor(rate * Math.min(2, dur)));
+    // Window from sustain-onset until just before release starts
+    const sustainStart = a + d;
+    const sustainEnd = Math.max(sustainStart + 0.01, dur);
+    const windowDur = Math.max(0.01, sustainEnd - sustainStart);
+    const eventCount = Math.max(1, Math.floor(rate * Math.min(2, windowDur)));
     for (let i = 0; i < eventCount; i++) {
-      const t = now + 0.005 + Math.random() * Math.max(0.01, dur);
+      const t = now + sustainStart + Math.random() * windowDur;
       const restoreT = t + 0.005 + Math.random() * 0.04;
       const ev = Math.floor(Math.random() * 6);
       try {
@@ -684,7 +838,7 @@ function buildSound(ctx, p, dest, levelGain, startTime) {
           ampGain.gain.setValueAtTime(curAmp * (1 - intensity * 0.8), t);
           ampGain.gain.linearRampToValueAtTime(curAmp, restoreT);
         } else {
-          // filter type micro-shift (only via cutoff sweep up/down hard)
+          // filter cutoff sweep — jumps then slides back
           const sweepEnd = clamp(baseCut * Math.pow(2, (Math.random() < 0.5 ? -1 : 1) * intensity * 3), 60, 16000);
           filter.frequency.setValueAtTime(filter.frequency.value, t);
           filter.frequency.exponentialRampToValueAtTime(sweepEnd, restoreT);
@@ -823,46 +977,131 @@ const FACTORY = {
   HURT:    { name:'HURT', osc:{type:'pulse',duty:0.125}, pitch:{note:64,pitchEnvAmount:-12,pitchEnvTime:0.15}, amp:{attack:0.001,decay:0.08,sustain:0.4,release:0.12}, filter:{type:'highpass',cutoff:400,resonance:4,envAmount:0}, lfo:{rate:22,depth:0.3,target:'pitch',waveform:'sine'}, delay:{time:0.1,feedback:0.25,mix:0}, reverb:{size:0.3,mix:0}, duration:0.25 },
 };
 
-function randomPatch() {
+// Single random-patch attempt — uses constrained ranges that already avoid
+// obviously-silent territory (e.g. lowpass cutoff far below pitch fundamental)
+function randomPatchAttempt() {
   const wild = Math.random() < 0.45;
   const oscType = pick(['pulse','pulse','pulse','triangle','sawtooth','noise']);
+  const note = oscType === 'noise' ? Math.floor(rng(36, 84)) : Math.floor(rng(28, 84));
+  const noteHz = 440 * Math.pow(2, (note - 69) / 12);
+
+  // Filter type + cutoff chosen TOGETHER so the cutoff is always in the
+  // audible band relative to the oscillator's fundamental
+  const filterType = pick(['lowpass','lowpass','highpass','bandpass']);
+  let cutoff;
+  if (filterType === 'lowpass') {
+    // Must pass at least the fundamental + a couple harmonics
+    cutoff = rng(Math.max(noteHz * 1.5, 400), 14000);
+  } else if (filterType === 'highpass') {
+    // Must pass below the fundamental so we don't kill all harmonics
+    cutoff = rng(80, Math.min(noteHz * 0.8, 3000));
+  } else {
+    // Bandpass — center near the fundamental for guaranteed pass-through
+    cutoff = rng(noteHz * 0.5, noteHz * 4);
+  }
+
+  // Sustain biased away from zero unless attack/decay are also long enough
+  // to give the sound real body before the release
+  const attack = Math.random() < 0.7 ? rng(0.001, 0.02) : rng(0.05, 0.4);
+  const decay = rng(0.02, 0.4);
+  const enoughBody = (attack + decay) > 0.08;
+  const sustain = enoughBody && Math.random() < 0.35
+    ? rng(0.05, 0.3)            // low sustain only when the front of the env has body
+    : rng(0.2, 0.9);            // healthy sustain otherwise
+
   return {
     name: 'RND' + Math.floor(Math.random()*99).toString().padStart(2,'0'),
     osc: { type: oscType, duty: pick([0.125, 0.25, 0.5, 0.75]) },
     pitch: {
-      note: oscType==='noise' ? Math.floor(rng(36,84)) : Math.floor(rng(28,84)),
-      pitchEnvAmount: rng(-36,36) * (wild?1:0.5),
-      pitchEnvTime: rng(0.01, wild?0.6:0.3),
+      note,
+      pitchEnvAmount: rng(-24, 24) * (wild ? 1 : 0.5), // narrowed from ±36 to ±24
+      pitchEnvTime: rng(0.01, wild ? 0.6 : 0.3),
     },
     amp: {
-      attack: Math.random()<0.7 ? rng(0.001,0.02) : rng(0.05,0.4),
-      decay: rng(0.02, 0.4),
-      sustain: Math.random()<0.4 ? 0 : rng(0.1,0.9),
-      release: rng(0.05, wild?0.8:0.4),
+      attack, decay, sustain,
+      release: rng(0.08, wild ? 0.8 : 0.4), // floor raised from 0.05 → 0.08
     },
     filter: {
-      type: pick(['lowpass','lowpass','highpass','bandpass']),
-      cutoff: rng(200, 12000),
-      resonance: rng(0.5, wild?18:8),
-      envAmount: Math.random()<0.5 ? 0 : rng(-1,1),
+      type: filterType,
+      cutoff,
+      resonance: rng(0.5, wild ? 14 : 6), // ceiling lowered from 18/8 → 14/6
+      envAmount: Math.random() < 0.5 ? 0 : rng(-0.7, 0.7), // narrowed from ±1
     },
     lfo: {
-      rate: rng(0.5, wild?35:15),
-      depth: Math.random()<0.4 ? 0 : rng(0.05, wild?0.9:0.5),
+      rate: rng(0.5, wild ? 35 : 15),
+      // Cap LFO depth on amp/filter targets so it can't fully zero them out
+      depth: Math.random() < 0.4 ? 0 : rng(0.05, wild ? 0.7 : 0.4),
       target: pick(['pitch','filter','amp']),
       waveform: pick(['sine','square','triangle','sawtooth']),
     },
     delay: {
       time: rng(0.04, 0.35),
       feedback: rng(0.1, 0.7),
-      mix: Math.random()<0.5 ? 0 : rng(0.1, 0.5),
+      mix: Math.random() < 0.5 ? 0 : rng(0.1, 0.5),
+      feedbackFade: true,
     },
     reverb: {
       size: rng(0.1, 0.9),
-      mix: Math.random()<0.6 ? 0 : rng(0.1, 0.45),
+      mix: Math.random() < 0.6 ? 0 : rng(0.1, 0.45),
     },
-    duration: rng(0.08, wild?0.9:0.5),
+    retroVerb: { time: 0.025, feedback: 0.5, tone: 0.6, mix: 0, feedbackFade: true },
+    drive: 0,
+    duration: rng(0.12, wild ? 0.9 : 0.5), // floor raised from 0.08 → 0.12
   };
+}
+
+// Sync audibility heuristic — returns 0..1 score predicting how loud the
+// patch will be. No offline render needed; runs in microseconds.
+function estimateAudibility(p) {
+  let score = 1;
+
+  // Penalty for ultra-short envelopes that resolve before reaching peak
+  const totalEnv = p.amp.attack + p.amp.decay + p.amp.release;
+  if (p.duration + p.amp.release < 0.05) score *= 0.3;
+  if (totalEnv < 0.04) score *= 0.5;
+
+  // Penalty for envelopes that hold near-zero (no sustain + immediate decay)
+  const peakEnvLevel = p.amp.sustain >= 0.05
+    ? Math.max(0.7, p.amp.sustain)
+    : Math.min(1, (p.amp.attack + p.amp.decay) / 0.05); // brief peak only
+  if (peakEnvLevel < 0.2) score *= 0.5;
+
+  // Filter check — does it actually pass the oscillator's content?
+  const noteHz = 440 * Math.pow(2, (p.pitch.note - 69) / 12);
+  const oscMinHz = p.osc.type === 'noise' ? 50 : noteHz;
+  const oscMaxHz = p.osc.type === 'noise' ? 12000 : noteHz * 8; // up to 8th harmonic
+  if (p.filter.type === 'lowpass') {
+    if (p.filter.cutoff < oscMinHz * 0.9) score *= 0.1; // kills everything
+    else if (p.filter.cutoff < oscMinHz * 1.5) score *= 0.55;
+  } else if (p.filter.type === 'highpass') {
+    if (p.filter.cutoff > oscMaxHz * 1.1) score *= 0.1;
+    else if (p.filter.cutoff > noteHz * 4) score *= 0.5;
+  } else if (p.filter.type === 'bandpass') {
+    // Bandpass passes only a narrow band — penalize if center is far from osc content
+    const distance = Math.abs(Math.log2(p.filter.cutoff / noteHz));
+    if (distance > 3) score *= 0.4; // more than 3 octaves away
+  }
+
+  // LFO on amp at high depth + low rate can hold the volume near zero
+  if (p.lfo.target === 'amp' && p.lfo.depth > 0.7 && p.lfo.rate < 2) score *= 0.6;
+
+  // Pitch envelope sweeping below 30Hz hides the sound subsonically
+  if (p.pitch.pitchEnvAmount < -36 && p.pitch.pitchEnvTime > 0.2) score *= 0.6;
+
+  return score;
+}
+
+function randomPatch() {
+  // Try up to 8 attempts; accept the first that passes the audibility threshold
+  let best = null;
+  let bestScore = -1;
+  for (let i = 0; i < 8; i++) {
+    const p = randomPatchAttempt();
+    const s = estimateAudibility(p);
+    if (s > bestScore) { best = p; bestScore = s; }
+    if (s >= 0.6) return p; // good enough — ship it
+  }
+  return best; // fallback to the best of the lot
 }
 
 /* ----- export ----- */
@@ -891,6 +1130,7 @@ async function renderToBuffer(p, renderOpts) {
   const channels = stereo ? 2 : 1;
   const normalize = !!(renderOpts && renderOpts.normalize);
   const normTarget = (renderOpts && typeof renderOpts.normalizeTarget === 'number') ? renderOpts.normalizeTarget : -6;
+  const useLimiter = !!(renderOpts && renderOpts.limiter);
 
   // Compute the maximum tail across the base patch and any mutant-delay copies
   function patchTail(patch) {
@@ -919,19 +1159,44 @@ async function renderToBuffer(p, renderOpts) {
   total = Math.min(total, 30);
 
   const ctx = new OfflineAudioContext(channels, Math.ceil(total * sr), sr);
+  const dest = useLimiter ? createLimiterChain(ctx) : ctx.destination;
 
   // Main hit at t=0
-  buildSound(ctx, p, ctx.destination, 1.0, 0);
+  buildSound(ctx, p, dest, 1.0, 0);
   // Mutant-delay copies at their offsets (drive + circuit bent come along inside buildSound)
   steps.forEach(step => {
     const mutated = mutatePatch(p, step.mutations, opts);
-    try { buildSound(ctx, mutated, ctx.destination, step.gain, step.delay); }
+    try { buildSound(ctx, mutated, dest, step.gain, step.delay); }
     catch (e) { /* skip bad copy, keep going */ }
   });
 
   const rendered = await ctx.startRendering();
   const trimmed = trimSilence(rendered);
   return normalize ? normalizeBuffer(trimmed, normTarget) : trimmed;
+}
+
+// Brick-wall limiter chain for offline rendering. Returns the input node.
+// Uses DynamicsCompressorNode with limiter-style settings: high ratio,
+// fast attack, low threshold, smooth release. Connects to ctx.destination.
+// A small makeup gain trim sits before to keep the perceived loudness from
+// dropping noticeably when the limiter engages on already-quiet material.
+function createLimiterChain(ctx) {
+  const input = ctx.createGain();
+  input.gain.value = 1;
+  const comp = ctx.createDynamicsCompressor();
+  // Threshold at -1 dBFS — anything louder gets squashed
+  comp.threshold.value = -1;
+  // Knee at 0 = hard knee = brick-wall feel
+  comp.knee.value = 0;
+  // Ratio 20:1 — anything over threshold barely moves, like a true limiter
+  comp.ratio.value = 20;
+  // Fast attack so transients don't sneak through
+  comp.attack.value = 0.001;
+  // Moderate release — long enough to avoid pumping, short enough to recover quickly
+  comp.release.value = 0.05;
+  input.connect(comp);
+  comp.connect(ctx.destination);
+  return input;
 }
 
 // Peak-normalize in place to a target dBFS (default -6).
@@ -1037,12 +1302,233 @@ function bufferToWav(buffer) {
 }
 
 async function exportMp3(p, renderOpts) {
-  const lame = await loadLame();
   const buffer = await renderToBuffer(p, renderOpts);
+  return bufferToMp3(buffer);
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+}
+
+/* ===========================================================
+   ZIP BUILDER (STORE method, no compression — pure JS)
+   For audio files (already-compressed MP3, large WAV) STORE is fine
+   and avoids pulling in a full deflate library.
+   Spec: PKZIP Application Note 6.3.x
+   =========================================================== */
+const _crcTable = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = (crc >>> 8) ^ _crcTable[(crc ^ bytes[i]) & 0xFF];
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+// Build a ZIP from [{name, bytes}]. Returns a Blob.
+function buildZip(files) {
+  // Compute every entry's CRC + size and build the local file headers
+  const localChunks = [];
+  const centralChunks = [];
+  let offset = 0;
+  const enc = new TextEncoder();
+  for (const f of files) {
+    const data = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
+    const nameBytes = enc.encode(f.name);
+    const crc = crc32(data);
+    const size = data.length;
+    // Local file header (30 + nameLen) + data
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true); // signature
+    lv.setUint16(4, 20, true);          // version needed
+    lv.setUint16(6, 0, true);           // flags
+    lv.setUint16(8, 0, true);           // method (0 = STORE)
+    lv.setUint16(10, 0, true);          // mod time (zero is fine)
+    lv.setUint16(12, 0x21, true);       // mod date (1980-01-01)
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, size, true);       // compressed size = uncompressed
+    lv.setUint32(22, size, true);
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);          // extra field length
+    local.set(nameBytes, 30);
+    localChunks.push(local, data);
+
+    // Central directory header
+    const central = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true);  // signature
+    cv.setUint16(4, 20, true);          // version made by
+    cv.setUint16(6, 20, true);          // version needed
+    cv.setUint16(8, 0, true);           // flags
+    cv.setUint16(10, 0, true);          // method
+    cv.setUint16(12, 0, true);          // mod time
+    cv.setUint16(14, 0x21, true);       // mod date
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint16(30, 0, true);          // extra field length
+    cv.setUint16(32, 0, true);          // comment length
+    cv.setUint16(34, 0, true);          // disk number
+    cv.setUint16(36, 0, true);          // internal attrs
+    cv.setUint32(38, 0, true);          // external attrs
+    cv.setUint32(42, offset, true);     // relative offset of local header
+    central.set(nameBytes, 46);
+    centralChunks.push(central);
+
+    offset += local.length + size;
+  }
+
+  const centralStart = offset;
+  let centralSize = 0;
+  for (const c of centralChunks) centralSize += c.length;
+
+  // End of central directory record
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(4, 0, true);             // disk number
+  ev.setUint16(6, 0, true);             // disk where central starts
+  ev.setUint16(8, files.length, true);  // entries on this disk
+  ev.setUint16(10, files.length, true); // total entries
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, centralStart, true);
+  ev.setUint16(20, 0, true);            // comment length
+
+  return new Blob([...localChunks, ...centralChunks, eocd], { type: 'application/zip' });
+}
+
+// Sanitize a filename — strip path separators, control chars, trim spaces
+function sanitizeFilename(name) {
+  return String(name || 'sfx').replace(/[\/\\:*?"<>|\x00-\x1f]/g, '_').replace(/\s+/g, '_').slice(0, 80) || 'sfx';
+}
+
+/* ===========================================================
+   SEQUENCER RENDERING (offline) — renders N cycles of the
+   currently active sequencer tracks to an audio buffer
+   =========================================================== */
+function getSequencerLoopInfo() {
+  const seq = state.sequencer;
+  const active = seq.tracks.filter(t => t.enabled);
+  if (active.length === 0) return null;
+  // Cycle = LCM of all enabled track step lengths (in 16th notes)
+  let cycle = active[0].steps;
+  for (let i = 1; i < active.length; i++) {
+    cycle = lcm(cycle, active[i].steps);
+  }
+  // Cap at 64 sixteenths so we never render an absurd loop
+  cycle = Math.min(cycle, 64);
+  return { stepsPerCycle: cycle, activeTracks: active };
+}
+function lcm(a, b) { return (a * b) / gcd(a, b); }
+function gcd(a, b) { while (b) { const t = b; b = a % b; a = t; } return a; }
+
+async function renderSequencer(cycles, renderOpts) {
+  const seq = state.sequencer;
+  const info = getSequencerLoopInfo();
+  if (!info) throw new Error('No active sequencer tracks');
+
+  const sr = 44100;
+  const stereo = renderOpts && renderOpts.stereo === true;
+  const channels = stereo ? 2 : 1;
+  const normalize = !!(renderOpts && renderOpts.normalize);
+  const normTarget = (renderOpts && typeof renderOpts.normalizeTarget === 'number') ? renderOpts.normalizeTarget : -6;
+  const useLimiter = !!(renderOpts && renderOpts.limiter);
+
+  const stepDur = (60 / Math.max(20, seq.bpm)) / 4; // 16th note seconds
+  const totalSteps = info.stepsPerCycle * cycles;
+  // Loop length + a tail to capture release/reverb of the final hits
+  const tailPad = 1.5;
+  const totalLen = totalSteps * stepDur + tailPad;
+  // Cap at 30s so a runaway BPM/cycles combo can't OOM
+  const renderLen = Math.min(totalLen, 30);
+
+  const ctx = new OfflineAudioContext(channels, Math.ceil(renderLen * sr), sr);
+  const dest = useLimiter ? createLimiterChain(ctx) : ctx.destination;
+
+  for (let step = 0; step < totalSteps; step++) {
+    const t = step * stepDur;
+    if (t >= renderLen) break;
+    info.activeTracks.forEach((track, ti) => {
+      const pat = euclideanRhythm(track.pulses, track.steps);
+      const stepInTrack = step % pat.length;
+      if (pat[stepInTrack] !== 1) return;
+      let p = JSON.parse(JSON.stringify(state.patch));
+      p.pitch.note = clamp(p.pitch.note + track.pitchOffset, 12, 108);
+      // Use the track's actual index in the original tracks array so variation
+      // matches what you hear when previewing
+      const realIdx = seq.tracks.indexOf(track);
+      p = applyVariation(p, realIdx, step, seq.variation);
+
+      // Schedule the main hit + mutant cascade copies offline
+      try { buildSound(ctx, p, dest, 1.0, t); } catch {}
+      const steps2 = getMutantSteps(p);
+      const mdOpts = p.mutantDelay
+        ? { noNoise: p.mutantDelay.noNoise, onlyNoise: p.mutantDelay.onlyNoise }
+        : null;
+      steps2.forEach(mstep => {
+        const mutated = mutatePatch(p, mstep.mutations, mdOpts);
+        try { buildSound(ctx, mutated, dest, mstep.gain, t + mstep.delay); } catch {}
+      });
+    });
+  }
+
+  const rendered = await ctx.startRendering();
+  // Don't trim leading silence — preserve the loop downbeat — but trim trailing tail
+  const trimmed = trimTrailingSilence(rendered);
+  return normalize ? normalizeBuffer(trimmed, normTarget) : trimmed;
+}
+
+// Like trimSilence but only trims the tail (preserves t=0 for accurate loop alignment)
+function trimTrailingSilence(buffer, threshold = 0.0006) {
+  const channels = buffer.numberOfChannels;
+  const len = buffer.length;
+  let lastNonSilent = -1;
+  for (let i = len - 1; i >= 0; i--) {
+    let loud = false;
+    for (let ch = 0; ch < channels; ch++) {
+      if (Math.abs(buffer.getChannelData(ch)[i]) >= threshold) { loud = true; break; }
+    }
+    if (loud) { lastNonSilent = i; break; }
+  }
+  if (lastNonSilent < 0) return buffer;
+  const sr = buffer.sampleRate;
+  const tailPad = Math.floor(sr * 0.05);
+  const end = Math.min(len, lastNonSilent + 1 + tailPad);
+  if (end >= len) return buffer;
+  let trimmed;
+  try {
+    trimmed = new AudioBuffer({ length: end, sampleRate: sr, numberOfChannels: channels });
+  } catch {
+    const tmp = new OfflineAudioContext(channels, end, sr);
+    trimmed = tmp.createBuffer(channels, end, sr);
+  }
+  for (let ch = 0; ch < channels; ch++) {
+    const src = buffer.getChannelData(ch);
+    const dst = trimmed.getChannelData(ch);
+    for (let i = 0; i < end; i++) dst[i] = src[i];
+  }
+  return trimmed;
+}
+
+// Render a buffer to MP3 using lamejs (extracted so both sample + sequencer paths share it)
+async function bufferToMp3(buffer) {
+  const lame = await loadLame();
   const sr = buffer.sampleRate;
   const channels = buffer.numberOfChannels;
   const len = buffer.length;
-  // Convert to int16 per channel
   const left = new Int16Array(len);
   const right = channels >= 2 ? new Int16Array(len) : null;
   const lData = buffer.getChannelData(0);
@@ -1060,22 +1546,12 @@ async function exportMp3(p, renderOpts) {
   const block = 1152;
   for (let i = 0; i < len; i += block) {
     const lChunk = left.subarray(i, i + block);
-    const b = right
-      ? enc.encodeBuffer(lChunk, right.subarray(i, i + block))
-      : enc.encodeBuffer(lChunk);
+    const b = right ? enc.encodeBuffer(lChunk, right.subarray(i, i + block)) : enc.encodeBuffer(lChunk);
     if (b.length) chunks.push(b);
   }
   const tail = enc.flush();
   if (tail.length) chunks.push(tail);
   return new Blob(chunks, { type: 'audio/mp3' });
-}
-
-function downloadBlob(blob, name) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
 }
 
 /* ----- url share ----- */
@@ -1228,10 +1704,18 @@ const state = {
   patch: initPatch(),
   presets: [],
   audioCtx: null,
-  export: { mono: true, normalize: false, normalizeTarget: -6 },
-  // session-scoped (resets on page load) — keys like 'random', 'init' indicate the user opted into auto-confirm
+  masterChain: null, // { gain, analyser } — built lazily in ensureCtx
+  masterVolume: 0.8,
+  meter: { peak: 0, rms: 0, peakHold: 0, peakHoldTime: 0, clipFlashUntil: 0, lastActivityTime: 0 },
+  export: {
+    mono: true, normalize: false, normalizeTarget: -6,
+    limiter: true, // armed by default — brick-wall limiter prevents clipping
+    queue: [], // [{ id, name, patch }] — capped at QUEUE_MAX
+    seqRec: { cycles: 4, format: 'wav' },
+  },
   suppressedConfirms: {},
 };
+const QUEUE_MAX = 20;
 
 const subscribers = []; // [{ refresh: () => void }]
 function subscribe(s) { subscribers.push(s); return s; }
@@ -1274,6 +1758,39 @@ function setPatch(newPatch) {
   refreshAll();
 }
 
+// Snapshot just the sequencer state (tracks + variation + bpm) so presets
+// can save/restore performance setups, not just sounds. Doesn't include
+// transient state like `playing`, `step`, or `_pattern` (rebuilt on load).
+function snapshotSequencer() {
+  const seq = state.sequencer;
+  return {
+    bpm: seq.bpm,
+    tracks: seq.tracks.map(t => ({
+      enabled: t.enabled, pulses: t.pulses, steps: t.steps,
+      pitchOffset: t.pitchOffset, color: t.color,
+    })),
+    variation: { ...seq.variation },
+  };
+}
+function applySequencerSnapshot(snap) {
+  if (!snap) return;
+  const seq = state.sequencer;
+  if (typeof snap.bpm === 'number') seq.bpm = snap.bpm;
+  if (Array.isArray(snap.tracks)) {
+    snap.tracks.forEach((t, i) => {
+      if (!seq.tracks[i]) return;
+      Object.assign(seq.tracks[i], t);
+    });
+  }
+  if (snap.variation) {
+    Object.assign(seq.variation, snap.variation);
+    // re-seed if missing so deterministic mutations have something to chew on
+    if (typeof seq.variation.seed !== 'number') seq.variation.seed = Math.random();
+  }
+  recomputePatterns();
+  if (sequencerSubs.refresh) sequencerSubs.refresh();
+}
+
 function updatePath(path, value) {
   const parts = path.split('.');
   let cur = state.patch;
@@ -1294,21 +1811,101 @@ function ensureCtx() {
     if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
     return state.audioCtx;
   }
-  state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return state.audioCtx;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  state.audioCtx = ctx;
+
+  // Persistent master chain: master gain → analyser → destination
+  // All live playback routes through this so master volume is real-time
+  // and the meter sees the true output signal
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = state.masterVolume;
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 512;            // smaller = less work per frame
+  analyser.smoothingTimeConstant = 0.5; // visual stability
+  masterGain.connect(analyser);
+  analyser.connect(ctx.destination);
+  state.masterChain = { gain: masterGain, analyser };
+
+  // Start the meter loop. Cheap when idle (no canvas work, no DOM thrash).
+  startMeterLoop();
+  return ctx;
+}
+
+function getMasterBus() {
+  ensureCtx();
+  return state.masterChain.gain;
+}
+
+// === VU METER LOOP ===
+// One shared rAF loop. Allocates the byte buffer once and reuses it.
+// Idle behavior: when no signal for >700ms we stop touching DOM until
+// activity returns, so the loop is essentially free at rest.
+let _meterBuf = null;
+const meterListeners = []; // [{ update: ({peak, rms, peakHold, clipping}) => void }]
+function subscribeMeter(fn) { meterListeners.push({ update: fn }); }
+
+function startMeterLoop() {
+  if (!state.masterChain) return;
+  const a = state.masterChain.analyser;
+  _meterBuf = new Uint8Array(a.fftSize);
+  let lastIdleNotify = 0;
+  function tick() {
+    a.getByteTimeDomainData(_meterBuf);
+    // Compute peak and RMS in one pass (bytes are 0..255, centered at 128)
+    let peak = 0, sumSq = 0;
+    const N = _meterBuf.length;
+    for (let i = 0; i < N; i++) {
+      const v = (_meterBuf[i] - 128) / 128; // -1..1
+      const a2 = v < 0 ? -v : v;
+      if (a2 > peak) peak = a2;
+      sumSq += v * v;
+    }
+    const rms = Math.sqrt(sumSq / N);
+    const now = performance.now();
+
+    // Peak hold (decays linearly over ~1 second)
+    const m = state.meter;
+    if (peak > m.peakHold) { m.peakHold = peak; m.peakHoldTime = now; }
+    else {
+      const age = (now - m.peakHoldTime) / 1000;
+      m.peakHold = Math.max(peak, m.peakHold - age * m.peakHold * 0.6);
+      m.peakHoldTime = now;
+    }
+    // Clip detection (sample magnitude at the very edge)
+    if (peak >= 0.99) m.clipFlashUntil = now + 220;
+    m.peak = peak;
+    m.rms = rms;
+
+    const active = peak > 0.001 || now < m.clipFlashUntil + 200;
+    if (active) {
+      m.lastActivityTime = now;
+    }
+    // Notify listeners on every frame while active; idle-throttle to once per ~250ms
+    if (active || (now - lastIdleNotify > 250)) {
+      lastIdleNotify = now;
+      const isClipping = now < m.clipFlashUntil;
+      for (let i = 0; i < meterListeners.length; i++) {
+        try { meterListeners[i].update({ peak, rms, peakHold: m.peakHold, clipping: isClipping }); } catch {}
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
 }
 
 // Trigger one playback cascade: main hit + mutant-delay copies
 function triggerPatch(basePatch) {
-  const ctx = ensureCtx();
-  buildSound(ctx, basePatch, ctx.destination, 1.0);
+  ensureCtx();
+  const ctx = state.audioCtx;
+  const bus = getMasterBus();
+  buildSound(ctx, basePatch, bus, 1.0);
   const steps = getMutantSteps(basePatch);
   const md = basePatch.mutantDelay;
   const opts = md ? { noNoise: md.noNoise, onlyNoise: md.onlyNoise } : null;
   steps.forEach(step => {
     const mutated = mutatePatch(basePatch, step.mutations, opts);
     setTimeout(() => {
-      try { buildSound(ctx, mutated, ctx.destination, step.gain); }
+      try { buildSound(ctx, mutated, bus, step.gain); }
       catch (e) { /* ignore */ }
     }, step.delay * 1000);
   });
@@ -1924,10 +2521,27 @@ function makeToggleGroup({ path, options, accent = C.yellow, transform = v => v,
   return subscribe({ element: wrap, refresh });
 }
 
+// Convert a hex color to its perceptual brightness 0..255 so we can
+// pick a readable text color (light text on dark bg, dark on light)
+function _brightness(hex) {
+  if (!hex || hex[0] !== '#') return 128;
+  const h = hex.length === 4
+    ? '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]
+    : hex;
+  const r = parseInt(h.slice(1, 3), 16);
+  const g = parseInt(h.slice(3, 5), 16);
+  const b = parseInt(h.slice(5, 7), 16);
+  // ITU-R BT.601 luma (matches what humans actually perceive)
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+function _readableTextOn(bg) {
+  return _brightness(bg) > 140 ? C.ink : C.text;
+}
+
 function makePixelButton({ label, icon, accent = C.yellow, onClick, small = false, full = false }) {
   const btn = el('button', {
     class: 'pixel-btn' + (small?' small':'') + (full?' full':''),
-    style: { background: accent }
+    style: { background: accent, color: _readableTextOn(accent) }
   });
   if (icon) btn.innerHTML = icon;
   btn.appendChild(document.createTextNode(label));
@@ -1942,6 +2556,7 @@ const ICONS = {
   save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>',
+  add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
 };
 
 /* ----- ADSR DISPLAY (canvas, pointer-events) ----- */
@@ -2315,9 +2930,97 @@ function build() {
   oscSection.body.appendChild(noiseWrap);
 
   // Output waveform now lives in the sticky top bar (above the main grid)
+  // Header row: [label] [master vol slider] [VU meter] [clip LED]
   const topScopeMount = document.getElementById('topScope');
-  topScopeMount.appendChild(el('div', { class: 'sub-label' }, '> OUTPUT WAVEFORM'));
+  const scopeHeader = el('div', { class: 'scope-header' });
+  scopeHeader.appendChild(el('div', { class: 'sub-label' }, '> OUTPUT WAVEFORM'));
+
+  const masterCtrls = el('div', { class: 'master-controls' });
+  // Master volume slider (custom — not a patch path; it's session state)
+  const volWrap = el('div', { class: 'master-vol-wrap' });
+  volWrap.appendChild(el('span', { class: 'master-vol-label' }, 'VOL'));
+  const volSlider = el('div', { class: 'master-vol-slider' });
+  const volFill = el('div', { class: 'master-vol-fill' });
+  const volThumb = el('div', { class: 'master-vol-thumb' });
+  volSlider.appendChild(volFill);
+  volSlider.appendChild(volThumb);
+  const volValue = el('span', { class: 'master-vol-value' }, '80%');
+  volWrap.appendChild(volSlider);
+  volWrap.appendChild(volValue);
+
+  function syncMasterVol() {
+    const v = state.masterVolume;
+    const pct = Math.round(v * 100);
+    volFill.style.width = pct + '%';
+    volThumb.style.left = pct + '%';
+    volValue.textContent = pct + '%';
+    if (state.masterChain) {
+      state.masterChain.gain.gain.value = v;
+    }
+  }
+  let volDragging = false;
+  function volPtv(e) {
+    const r = volSlider.getBoundingClientRect();
+    const x = clamp(e.clientX - r.left, 0, r.width);
+    state.masterVolume = clamp(r.width === 0 ? 0 : x / r.width, 0, 1);
+    syncMasterVol();
+  }
+  volSlider.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    volDragging = true;
+    volSlider.setPointerCapture(e.pointerId);
+    volPtv(e);
+  });
+  volSlider.addEventListener('pointermove', e => { if (volDragging) volPtv(e); });
+  const volEnd = e => {
+    if (volDragging) {
+      volDragging = false;
+      try { volSlider.releasePointerCapture(e.pointerId); } catch {}
+    }
+  };
+  volSlider.addEventListener('pointerup', volEnd);
+  volSlider.addEventListener('pointercancel', volEnd);
+  syncMasterVol();
+  masterCtrls.appendChild(volWrap);
+
+  // VU meter
+  const vuMeter = el('div', { class: 'vu-meter' });
+  const vuFill = el('div', { class: 'vu-meter-fill' });
+  const vuPeak = el('div', { class: 'vu-meter-peak' });
+  vuMeter.appendChild(vuFill);
+  vuMeter.appendChild(vuPeak);
+  masterCtrls.appendChild(vuMeter);
+
+  // Clip LED
+  masterCtrls.appendChild(el('span', { class: 'clip-label' }, 'CLIP'));
+  const clipLED = el('div', { class: 'clip-led' });
+  masterCtrls.appendChild(clipLED);
+
+  scopeHeader.appendChild(masterCtrls);
+  topScopeMount.appendChild(scopeHeader);
   topScopeMount.appendChild(makeScope());
+
+  // Wire the meter — only writes to DOM when values actually changed
+  // to avoid layout/paint thrash when nothing is happening.
+  let _lastFillPct = -1, _lastPeakPct = -1, _lastClipLit = false;
+  subscribeMeter(({ rms, peakHold, clipping }) => {
+    // Convert linear RMS to a perceptual-ish display (sqrt for visual lift)
+    const fillPct = Math.min(100, Math.sqrt(Math.max(0, rms)) * 110);
+    const peakPct = Math.min(100, peakHold * 100);
+    if (Math.abs(fillPct - _lastFillPct) > 0.3) {
+      vuFill.style.width = fillPct + '%';
+      _lastFillPct = fillPct;
+    }
+    if (Math.abs(peakPct - _lastPeakPct) > 0.3) {
+      vuPeak.style.left = peakPct + '%';
+      vuPeak.style.opacity = peakPct > 0.5 ? '1' : '0';
+      _lastPeakPct = peakPct;
+    }
+    if (clipping !== _lastClipLit) {
+      clipLED.classList.toggle('lit', clipping);
+      _lastClipLit = clipping;
+    }
+  });
 
   // visibility toggle for duty/noise based on osc.type
   subscribe({ refresh: () => {
@@ -2697,6 +3400,83 @@ function build() {
   }));
   tracksWrap.appendChild(transport);
 
+  // ===== SEQUENCER RECORDING ROW =====
+  const recRow = el('div', { class: 'seq-rec-row' });
+  recRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'REC LOOP:'));
+  // Cycles slider — how many full pattern cycles to render
+  const cyclesWrap = el('div', { style: { minWidth: '120px', flex: '1', maxWidth: '200px' }});
+  const cyclesSlider = makeCustomSlider({
+    label: 'CYCLES', accent: C.cyan, min: 1, max: 8, step: 1,
+    getValue: () => state.export.seqRec.cycles,
+    setValue: v => { state.export.seqRec.cycles = v; updateRecInfo(); },
+    format: v => Math.round(v) + 'x',
+  });
+  cyclesWrap.appendChild(cyclesSlider.element);
+  recRow.appendChild(cyclesWrap);
+
+  const recWavBtn = makePixelButton({
+    label: 'REC WAV', icon: ICONS.download, accent: C.cyan, small: true,
+    onClick: () => recordSequencer('wav'),
+  });
+  const recMp3Btn = makePixelButton({
+    label: 'REC MP3', icon: ICONS.download, accent: C.yellow, small: true,
+    onClick: () => recordSequencer('mp3'),
+  });
+  recRow.appendChild(recWavBtn);
+  recRow.appendChild(recMp3Btn);
+  const recInfo = el('span', { class: 'seq-rec-info' });
+  recRow.appendChild(recInfo);
+  tracksWrap.appendChild(recRow);
+
+  function updateRecInfo() {
+    const info = getSequencerLoopInfo();
+    if (!info) {
+      recInfo.textContent = 'NO ACTIVE TRACKS';
+      recWavBtn.disabled = true; recMp3Btn.disabled = true;
+      return;
+    }
+    const stepDur = (60 / Math.max(20, state.sequencer.bpm)) / 4;
+    const totalSec = info.stepsPerCycle * state.export.seqRec.cycles * stepDur;
+    recInfo.textContent = info.stepsPerCycle + ' STEPS × ' + state.export.seqRec.cycles + ' = ' +
+      totalSec.toFixed(2) + 's';
+    recWavBtn.disabled = false; recMp3Btn.disabled = false;
+  }
+  // Track the buttons so the existing sequencer refresh can update them when
+  // active tracks / BPM change
+  sequencerSubs._recInfoUpdate = updateRecInfo;
+
+  let recording = false;
+  async function recordSequencer(format) {
+    if (recording) return;
+    const info = getSequencerLoopInfo();
+    if (!info) { flash('NO ACTIVE TRACKS TO RECORD'); return; }
+    recording = true;
+    recWavBtn.disabled = true; recMp3Btn.disabled = true;
+    const origLabel = format === 'mp3' ? 'REC MP3' : 'REC WAV';
+    const btn = format === 'mp3' ? recMp3Btn : recWavBtn;
+    btn.lastChild.textContent = 'RENDERING...';
+    try {
+      // Use the same export opts as sample exports (mono/normalize toggles)
+      const opts = {
+        stereo: !state.export.mono,
+        normalize: !!state.export.normalize,
+        normalizeTarget: state.export.normalizeTarget,
+        limiter: !!state.export.limiter,
+      };
+      const buf = await renderSequencer(state.export.seqRec.cycles, opts);
+      const blob = format === 'mp3' ? await bufferToMp3(buf) : bufferToWav(buf);
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      downloadBlob(blob, 'yucca-fx_seq_' + stamp + '.' + format);
+      flash('SEQUENCE EXPORTED');
+    } catch (e) {
+      console.error(e);
+      flash('REC FAILED · SEE CONSOLE');
+    }
+    btn.lastChild.textContent = origLabel;
+    recording = false;
+    updateRecInfo();
+  }
+
   // Track rows
   const trackRowEls = [];
   state.sequencer.tracks.forEach((track, ti) => {
@@ -2707,6 +3487,7 @@ function build() {
       track.enabled = !track.enabled;
       tog.classList.toggle('on', track.enabled);
       tog.classList.toggle('off', !track.enabled);
+      if (sequencerSubs._recInfoUpdate) sequencerSubs._recInfoUpdate();
     });
     head.appendChild(tog);
     head.appendChild(el('span', { class: 'seq-track-name', style: { color: track.color }}, 'T' + (ti+1)));
@@ -2815,6 +3596,7 @@ function build() {
     playSeqBtn.lastChild.textContent = state.sequencer.playing ? 'STOP' : 'PLAY';
     playSeqBtn.style.background = state.sequencer.playing ? C.red : C.green;
     if (sequencerSubs._bpmUpdate) sequencerSubs._bpmUpdate();
+    if (sequencerSubs._recInfoUpdate) sequencerSubs._recInfoUpdate();
     trackRowEls.forEach(({ stepGrid, track }, ti) => {
       const pat = track._pattern || euclideanRhythm(track.pulses, track.steps);
       const playhead = state.sequencer.playing ? state.sequencer.step % pat.length : -1;
@@ -2865,7 +3647,11 @@ function build() {
     label: 'SAVE', icon: ICONS.save, accent: C.green, small: true,
     onClick: () => {
       const name = (nameInput.value || state.patch.name || 'PRESET').toUpperCase().slice(0, 8);
-      const preset = { id: Date.now(), name, patch: { ...JSON.parse(JSON.stringify(state.patch)), name }};
+      const preset = {
+        id: Date.now(), name,
+        patch: { ...JSON.parse(JSON.stringify(state.patch)), name },
+        sequencer: snapshotSequencer(),
+      };
       state.presets = [...state.presets, preset].slice(-24);
       savePresets();
       nameInput.value = '';
@@ -2890,7 +3676,11 @@ function build() {
       const card = el('div', { class: 'preset-card' });
       card.appendChild(el('button', {
         class: 'preset-load',
-        onclick: () => { setPatch(p.patch); flash('LOADED >> ' + p.name); }
+        onclick: () => {
+          setPatch(p.patch);
+          if (p.sequencer) applySequencerSnapshot(p.sequencer);
+          flash('LOADED >> ' + p.name);
+        }
       }, '◆ ' + p.name));
       card.appendChild(el('button', {
         class: 'preset-del',
@@ -2916,9 +3706,11 @@ function build() {
   exportOptsRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'EXPORT OPTS:'));
   const monoBtn = el('button', { class: 'pill-toggle' }, 'MONO');
   const normBtn = el('button', { class: 'pill-toggle' }, 'NORMALIZE -6dB');
+  const limiterBtn = el('button', { class: 'pill-toggle' }, 'LIMITER');
   function syncExportButtons() {
     monoBtn.classList.toggle('on', !!state.export.mono);
     normBtn.classList.toggle('on', !!state.export.normalize);
+    limiterBtn.classList.toggle('on', !!state.export.limiter);
   }
   monoBtn.addEventListener('click', () => {
     state.export.mono = !state.export.mono;
@@ -2928,8 +3720,13 @@ function build() {
     state.export.normalize = !state.export.normalize;
     syncExportButtons();
   });
+  limiterBtn.addEventListener('click', () => {
+    state.export.limiter = !state.export.limiter;
+    syncExportButtons();
+  });
   exportOptsRow.appendChild(monoBtn);
   exportOptsRow.appendChild(normBtn);
+  exportOptsRow.appendChild(limiterBtn);
   exportSec.body.appendChild(exportOptsRow);
   syncExportButtons();
 
@@ -2939,6 +3736,7 @@ function build() {
       stereo: !state.export.mono,
       normalize: !!state.export.normalize,
       normalizeTarget: state.export.normalizeTarget,
+      limiter: !!state.export.limiter,
     };
   }
 
@@ -2998,6 +3796,196 @@ function build() {
 
   exportSec.body.appendChild(el('div', { class: 'export-note' },
     'MP3 LOADS LAMEJS FROM CDN ON FIRST USE · WAV ALWAYS WORKS OFFLINE'));
+
+  /* ===== EXPORT QUEUE ===== */
+  const queueSec = el('div', { class: 'queue-section' });
+  const queueHeader = el('div', { class: 'queue-header' });
+  queueHeader.appendChild(el('span', { class: 'sub-label', style: { color: C.green }}, '> EXPORT QUEUE'));
+  const queueCount = el('span', { class: 'queue-count' });
+  queueHeader.appendChild(queueCount);
+  queueSec.appendChild(queueHeader);
+
+  const queueAddRow = el('div', { class: 'export-row' });
+  const queueAddBtn = makePixelButton({
+    label: 'ADD CURRENT', icon: ICONS.add || ICONS.save, accent: C.green, full: true,
+    onClick: () => {
+      if (state.export.queue.length >= QUEUE_MAX) {
+        flash('QUEUE FULL (MAX ' + QUEUE_MAX + ')');
+        return;
+      }
+      state.export.queue.push({
+        id: Date.now() + '_' + Math.floor(Math.random() * 999),
+        name: state.patch.name || 'sfx',
+        patch: JSON.parse(JSON.stringify(state.patch)),
+      });
+      renderQueueList();
+      flash('ADDED TO QUEUE');
+    },
+  });
+  const queueClearBtn = makePixelButton({
+    label: 'CLEAR', accent: C.red, small: true,
+    onClick: () => {
+      if (state.export.queue.length === 0) return;
+      showConfirm({
+        title: '> CLEAR QUEUE?',
+        message: 'Remove all ' + state.export.queue.length + ' items from the export queue?',
+        confirmLabel: 'CLEAR', cancelLabel: 'KEEP', accent: C.red,
+        onConfirm: () => { state.export.queue = []; renderQueueList(); flash('QUEUE CLEARED'); },
+      });
+    },
+  });
+  queueAddRow.appendChild(queueAddBtn);
+  queueAddRow.appendChild(queueClearBtn);
+  queueSec.appendChild(queueAddRow);
+
+  // Batch rename row
+  const renameRow = el('div', { class: 'batch-rename-row' });
+  const renameInput = el('input', {
+    type: 'text', class: 'batch-rename-input',
+    placeholder: 'BASE NAME (e.g. coin)',
+  });
+  const renameBtn = makePixelButton({
+    label: 'BATCH RENAME', accent: C.cyan, small: true,
+    onClick: () => {
+      const base = sanitizeFilename(renameInput.value.trim() || 'sfx');
+      const pad = String(state.export.queue.length).length;
+      state.export.queue.forEach((item, i) => {
+        item.name = base + '_' + String(i + 1).padStart(pad, '0');
+      });
+      renderQueueList();
+      flash('RENAMED ' + state.export.queue.length + ' ITEMS');
+    },
+  });
+  renameRow.appendChild(renameInput);
+  renameRow.appendChild(renameBtn);
+  queueSec.appendChild(renameRow);
+
+  // Queue list (rendered dynamically)
+  const queueList = el('div', { class: 'queue-list' });
+  queueSec.appendChild(queueList);
+
+  // Progress display (hidden when idle)
+  const queueProgress = el('div', { class: 'queue-progress', style: { display: 'none' }});
+  const queueProgressText = el('div', {});
+  const queueProgressBar = el('div', { class: 'queue-progress-bar' });
+  const queueProgressFill = el('div', { class: 'queue-progress-fill' });
+  queueProgressBar.appendChild(queueProgressFill);
+  queueProgress.appendChild(queueProgressText);
+  queueProgress.appendChild(queueProgressBar);
+  queueSec.appendChild(queueProgress);
+
+  // Batch export buttons — separate downloads
+  const batchRow = el('div', { class: 'export-row' });
+  const batchWavBtn = makePixelButton({
+    label: 'BATCH WAV', accent: C.cyan, full: true,
+    onClick: () => batchExport('wav', false),
+  });
+  const batchMp3Btn = makePixelButton({
+    label: 'BATCH MP3', accent: C.yellow, full: true,
+    onClick: () => batchExport('mp3', false),
+  });
+  batchRow.appendChild(batchWavBtn);
+  batchRow.appendChild(batchMp3Btn);
+  queueSec.appendChild(batchRow);
+
+  // Batch zip buttons — bundled in a single .zip
+  const zipRow = el('div', { class: 'export-row' });
+  const zipWavBtn = makePixelButton({
+    label: 'ZIP (WAV)', accent: C.cyan, full: true,
+    onClick: () => batchExport('wav', true),
+  });
+  const zipMp3Btn = makePixelButton({
+    label: 'ZIP (MP3)', accent: C.green, full: true,
+    onClick: () => batchExport('mp3', true),
+  });
+  zipRow.appendChild(zipWavBtn);
+  zipRow.appendChild(zipMp3Btn);
+  queueSec.appendChild(zipRow);
+
+  exportSec.body.appendChild(queueSec);
+
+  // ----- Queue rendering helpers -----
+  function renderQueueList() {
+    queueList.innerHTML = '';
+    queueCount.textContent = state.export.queue.length + ' / ' + QUEUE_MAX;
+    const empty = state.export.queue.length === 0;
+    if (empty) {
+      queueList.appendChild(el('div', { class: 'queue-list-empty' }, 'QUEUE EMPTY · ADD A PATCH TO BATCH EXPORT'));
+    }
+    batchWavBtn.disabled = empty; batchMp3Btn.disabled = empty;
+    zipWavBtn.disabled = empty; zipMp3Btn.disabled = empty;
+    if (empty) return;
+    state.export.queue.forEach((item, i) => {
+      const row = el('div', { class: 'queue-item' });
+      row.appendChild(el('span', { class: 'queue-item-num' }, String(i + 1).padStart(2, '0')));
+      const nameInput = el('input', { type: 'text', class: 'queue-item-name', value: item.name });
+      nameInput.addEventListener('input', e => { item.name = e.target.value; });
+      row.appendChild(nameInput);
+      const removeBtn = el('button', { class: 'queue-item-remove', title: 'Remove' }, '×');
+      removeBtn.addEventListener('click', () => {
+        state.export.queue.splice(i, 1);
+        renderQueueList();
+      });
+      row.appendChild(removeBtn);
+      queueList.appendChild(row);
+    });
+  }
+
+  let batchExporting = false;
+  async function batchExport(format, asZip) {
+    if (batchExporting || state.export.queue.length === 0) return;
+    batchExporting = true;
+    queueAddBtn.disabled = true; batchWavBtn.disabled = true;
+    batchMp3Btn.disabled = true; zipWavBtn.disabled = true; zipMp3Btn.disabled = true;
+    queueClearBtn.disabled = true;
+    queueProgress.style.display = '';
+    errorEl.style.display = 'none';
+    const zipFiles = [];
+    const total = state.export.queue.length;
+    try {
+      for (let i = 0; i < total; i++) {
+        const item = state.export.queue[i];
+        queueProgressText.textContent = 'RENDERING ' + (i + 1) + ' OF ' + total + ' · ' + item.name;
+        queueProgressFill.style.width = ((i / total) * 100) + '%';
+        // yield to the UI thread before the heavy work
+        await new Promise(r => setTimeout(r, 10));
+        const buf = await renderToBuffer(item.patch, getExportOpts());
+        const blob = format === 'mp3' ? await bufferToMp3(buf) : bufferToWav(buf);
+        const fileName = sanitizeFilename(item.name) + '.' + format;
+        if (asZip) {
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          zipFiles.push({ name: fileName, bytes });
+        } else {
+          downloadBlob(blob, fileName);
+          // small delay between individual downloads so the browser doesn't block them
+          await new Promise(r => setTimeout(r, 250));
+        }
+      }
+      queueProgressFill.style.width = '100%';
+      if (asZip) {
+        queueProgressText.textContent = 'BUILDING ZIP...';
+        await new Promise(r => setTimeout(r, 10));
+        const zip = buildZip(zipFiles);
+        downloadBlob(zip, 'yucca-fx-batch.zip');
+        flash('ZIP DOWNLOADED (' + total + ' FILES)');
+      } else {
+        flash('EXPORTED ' + total + ' FILES');
+      }
+    } catch (e) {
+      console.error(e);
+      errorEl.textContent = '! Batch export failed: ' + (e.message || e);
+      errorEl.style.display = '';
+    }
+    setTimeout(() => {
+      queueProgress.style.display = 'none';
+      queueProgressFill.style.width = '0%';
+    }, 800);
+    batchExporting = false;
+    queueAddBtn.disabled = false; queueClearBtn.disabled = false;
+    renderQueueList(); // re-enables batch buttons if queue still has items
+  }
+
+  renderQueueList();
 
   exportPopup.appendChild(exportSec.element);
 
