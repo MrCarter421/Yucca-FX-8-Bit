@@ -123,6 +123,28 @@
   .clip-label {
     font-family: var(--pixel); font-size: 8px; color: var(--dim); flex-shrink: 0;
   }
+  /* Quick-queue button in the scope bar — single-tap shortcut to add the
+     current patch to the export queue without opening the menu */
+  .quick-queue-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 8px; min-height: 28px; flex-shrink: 0;
+    background: var(--bg2); border: 2px solid var(--border);
+    box-shadow: 2px 2px 0 var(--ink); cursor: pointer;
+    font-family: var(--pixel); font-size: 9px; letter-spacing: 0.05em;
+    color: var(--green);
+    transition: background 0.08s;
+  }
+  .quick-queue-btn:hover { background: var(--bg3); }
+  .quick-queue-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  .quick-queue-btn.has-items { color: var(--green); border-color: var(--green); }
+  .quick-queue-btn.full { color: var(--red); border-color: var(--red); cursor: not-allowed; }
+  .quick-queue-icon { line-height: 1; }
+  .quick-queue-count {
+    font-family: var(--term); font-size: 11px; color: var(--text);
+    background: var(--ink); padding: 1px 5px; min-width: 16px; text-align: center;
+    border: 1px solid var(--border);
+  }
+  .quick-queue-btn.full .quick-queue-count { color: var(--red); }
   @media (max-width: 720px) {
     .scope-header { flex-wrap: wrap; }
     .master-controls { width: 100%; margin-left: 0; }
@@ -235,6 +257,7 @@
     max-width: 420px; width: 100%;
     display: flex; flex-direction: column; gap: 14px;
   }
+  .modal-info { max-width: 560px; max-height: 85vh; overflow: hidden; }
   .modal-title {
     font-family: var(--pixel); font-size: 12px; letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -242,6 +265,27 @@
   .modal-message {
     font-family: var(--term); font-size: 14px; color: var(--text); line-height: 1.5;
   }
+  /* Rich-text body for the info modal (sequencer help, etc.) */
+  .modal-info-body {
+    font-family: var(--term); font-size: 14px; color: var(--text); line-height: 1.55;
+    overflow-y: auto;
+    padding-right: 4px; /* room for scrollbar so text doesn't crowd it */
+  }
+  .modal-info-body h4 {
+    font-family: var(--pixel); font-size: 10px; letter-spacing: 0.1em;
+    color: var(--cyan); margin: 14px 0 6px; text-transform: uppercase;
+  }
+  .modal-info-body h4:first-child { margin-top: 0; }
+  .modal-info-body p { margin: 0 0 8px; }
+  .modal-info-body ul { margin: 0 0 10px; padding-left: 20px; }
+  .modal-info-body li { margin-bottom: 4px; }
+  .modal-info-body code, .modal-info-body kbd {
+    font-family: var(--term); font-size: 13px;
+    color: var(--yellow); background: var(--ink); padding: 1px 5px;
+    border: 1px solid var(--border);
+  }
+  .modal-info-body strong { color: var(--green); }
+  .modal-info-body em { color: var(--magenta); font-style: normal; }
   .modal-buttons {
     display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
   }
@@ -605,7 +649,7 @@
     <!-- STATUS -->
     <div class="status">
       <span class="status-msg" id="statusMsg">&gt; READY. PRESS [SPACE] TO PLAY · [R] TO RANDOMIZE</span>
-      <span class="status-version">v1.3</span>
+      <span class="status-version">v1.4</span>
     </div>
 
     <!-- TOP OUTPUT WAVEFORM -->
@@ -2069,6 +2113,24 @@ function flash(msg) {
   }, 2000);
 }
 
+// Global "add current patch to export queue" — used by the EXPORT popup's
+// own button AND by the scope-bar shortcut button. Refreshes the queue UI
+// if it has been built (after build() has run).
+function addCurrentToQueue() {
+  if (state.export.queue.length >= QUEUE_MAX) {
+    flash('QUEUE FULL (MAX ' + QUEUE_MAX + ')');
+    return false;
+  }
+  state.export.queue.push({
+    id: Date.now() + '_' + Math.floor(Math.random() * 999),
+    name: state.patch.name || 'sfx',
+    patch: JSON.parse(JSON.stringify(state.patch)),
+  });
+  if (state._queueRefresh) state._queueRefresh();
+  flash('ADDED TO QUEUE [' + state.export.queue.length + '/' + QUEUE_MAX + ']');
+  return true;
+}
+
 /* ===========================================================
    COMPONENTS
    =========================================================== */
@@ -2379,6 +2441,82 @@ document.addEventListener('keydown', e => {
 // First time: shows modal with a checkbox CHECKED by default. If user confirms with the box
 // still checked, future calls with the same key skip the modal. If they uncheck before confirming,
 // the suppression is lifted (popup will show next time too).
+/* ===== Info modal — single dismiss button, supports rich HTML body ===== */
+// Use this for things that need explanation, not confirmation.
+// `bodyHtml` may contain trusted HTML (we never pass user-supplied content here).
+function showInfoModal({ title, bodyHtml, accent, dismissLabel = 'GOT IT' }) {
+  const overlay = el('div', { class: 'modal-overlay' });
+  const modal = el('div', { class: 'modal modal-info' });
+  modal.appendChild(el('div', { class: 'modal-title', style: { color: accent || C.cyan }}, title));
+  const body = el('div', { class: 'modal-info-body' });
+  body.innerHTML = bodyHtml;
+  modal.appendChild(body);
+  function dismiss() {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  }
+  const onKey = e => { if (e.key === 'Escape' || e.key === 'Enter') dismiss(); };
+  document.addEventListener('keydown', onKey);
+  const btnRow = el('div', { class: 'modal-buttons' });
+  btnRow.appendChild(makePixelButton({
+    label: dismissLabel, accent: accent || C.cyan, small: true, onClick: dismiss,
+  }));
+  modal.appendChild(btnRow);
+  overlay.appendChild(modal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) dismiss(); });
+  document.body.appendChild(overlay);
+}
+
+/* Sequencer help modal — content + invocation in one place so both
+ * the markup and the styling assumptions stay synced.
+ */
+function showSequencerHelp() {
+  showInfoModal({
+    title: '> LISSAJOUS SEQUENCER · QUICK GUIDE',
+    accent: C.green,
+    bodyHtml: `
+      <h4>What it does</h4>
+      <p>Three independent <em>euclidean rhythm</em> tracks trigger your current patch in evenly-spaced patterns. Each track can pitch the patch up or down, and an optional <em>variation engine</em> mutates each hit so loops never feel repetitive.</p>
+
+      <h4>Tracks <strong>T1 / T2 / T3</strong></h4>
+      <ul>
+        <li><strong>Toggle</strong> · the colored square enables/disables the track.</li>
+        <li><strong>PULSES</strong> · how many hits per pattern.</li>
+        <li><strong>STEPS</strong> · pattern length. Pulses get distributed as evenly as possible — this is what makes euclidean rhythms groove.</li>
+        <li><strong>PITCH</strong> · semitone offset from your patch's note.</li>
+      </ul>
+      <p>Try <code>5 in 16</code> for a clave, <code>3 in 8</code> for tresillo, <code>7 in 12</code> for a polyrhythm. Mix coprime step counts (16+11+13) for patterns that take ~30+ seconds to repeat.</p>
+
+      <h4>Lissajous visualizer</h4>
+      <p>The XY oscilloscope on the left draws the relationship between two sine waves at the chosen <strong>X RATIO</strong> / <strong>Y RATIO</strong>. The shape flashes the color of whichever track just fired. Pure pythagorean ratios (3:2, 5:4) close into stable shapes; irrational ratios drift forever.</p>
+
+      <h4>Transport</h4>
+      <ul>
+        <li><strong>PLAY / STOP</strong> · starts the engine.</li>
+        <li><strong>BPM</strong> · 40–240. Steps are 16th notes.</li>
+        <li><strong>RND SEQ</strong> · randomizes all three tracks' pulses, steps, and pitch offsets.</li>
+      </ul>
+
+      <h4>Variation engine</h4>
+      <p>When ON, every hit gets a deterministic per-step mutation seeded by the current pattern. <em>Same pattern, same variations</em> — it grooves rather than flickering. The drift sliders control how far each parameter can wander. <strong>RESEED</strong> rolls a new variation pattern.</p>
+      <ul>
+        <li><strong>NO NOISE</strong> · OSC SWAP picks pulse / triangle / sawtooth only.</li>
+        <li><strong>ONLY NOISE</strong> · forces every hit to noise, randomizes the noise type.</li>
+      </ul>
+
+      <h4>Recording loops</h4>
+      <p>The <strong>REC LOOP</strong> row at the bottom renders <code>N</code> cycles of your current sequence to a WAV or MP3 file. The system picks a loop length that's the LCM of all active tracks' steps — so the file loops cleanly when you concatenate it. Cap is 64 sixteenths × 8 cycles.</p>
+
+      <h4>Tips</h4>
+      <ul>
+        <li>Set up a chord progression by setting different <strong>PITCH</strong> offsets on each track over different step counts.</li>
+        <li>For drum loops, build three patches (kick / snare / hat), save them as presets, and trigger them by enabling one track per preset hit.</li>
+        <li>Variation + Mutant Delay together = endless evolving patterns from a single patch.</li>
+      </ul>
+    `,
+  });
+}
+
 function showConfirm({ title, message, confirmLabel = 'CONFIRM', cancelLabel = 'CANCEL', accent, onConfirm, dontShowAgainKey, dontShowAgainLabel }) {
   if (dontShowAgainKey && state.suppressedConfirms[dontShowAgainKey]) {
     if (onConfirm) onConfirm();
@@ -2996,6 +3134,26 @@ function build() {
   const clipLED = el('div', { class: 'clip-led' });
   masterCtrls.appendChild(clipLED);
 
+  // Quick-queue button — adds current patch to export queue without opening the menu
+  const quickQueueBtn = el('button', { class: 'quick-queue-btn', title: 'Add current patch to export queue' });
+  quickQueueBtn.appendChild(el('span', { class: 'quick-queue-icon' }, '+Q'));
+  const quickQueueCount = el('span', { class: 'quick-queue-count' }, '0');
+  quickQueueBtn.appendChild(quickQueueCount);
+  function syncQuickQueueCount() {
+    const n = state.export.queue.length;
+    quickQueueCount.textContent = String(n);
+    quickQueueBtn.classList.toggle('full', n >= QUEUE_MAX);
+    quickQueueBtn.classList.toggle('has-items', n > 0);
+  }
+  quickQueueBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    addCurrentToQueue();
+    syncQuickQueueCount();
+  });
+  state._scopeQueueCount = syncQuickQueueCount;
+  syncQuickQueueCount();
+  masterCtrls.appendChild(quickQueueBtn);
+
   scopeHeader.appendChild(masterCtrls);
   topScopeMount.appendChild(scopeHeader);
   topScopeMount.appendChild(makeScope());
@@ -3397,6 +3555,10 @@ function build() {
       sequencerSubs.refresh && sequencerSubs.refresh();
       flash('SEQUENCE RANDOMIZED');
     }
+  }));
+  transport.appendChild(makePixelButton({
+    label: '?', accent: C.cyan, small: true,
+    onClick: () => showSequencerHelp(),
   }));
   tracksWrap.appendChild(transport);
 
@@ -3808,19 +3970,7 @@ function build() {
   const queueAddRow = el('div', { class: 'export-row' });
   const queueAddBtn = makePixelButton({
     label: 'ADD CURRENT', icon: ICONS.add || ICONS.save, accent: C.green, full: true,
-    onClick: () => {
-      if (state.export.queue.length >= QUEUE_MAX) {
-        flash('QUEUE FULL (MAX ' + QUEUE_MAX + ')');
-        return;
-      }
-      state.export.queue.push({
-        id: Date.now() + '_' + Math.floor(Math.random() * 999),
-        name: state.patch.name || 'sfx',
-        patch: JSON.parse(JSON.stringify(state.patch)),
-      });
-      renderQueueList();
-      flash('ADDED TO QUEUE');
-    },
+    onClick: () => { addCurrentToQueue(); },
   });
   const queueClearBtn = makePixelButton({
     label: 'CLEAR', accent: C.red, small: true,
@@ -3909,6 +4059,9 @@ function build() {
     queueList.innerHTML = '';
     queueCount.textContent = state.export.queue.length + ' / ' + QUEUE_MAX;
     const empty = state.export.queue.length === 0;
+    // Always sync the scope-bar quick-queue counter — including when emptying,
+    // so CLEAR / individual removes / batch operations all keep the badge honest
+    if (state._scopeQueueCount) state._scopeQueueCount();
     if (empty) {
       queueList.appendChild(el('div', { class: 'queue-list-empty' }, 'QUEUE EMPTY · ADD A PATCH TO BATCH EXPORT'));
     }
@@ -3930,6 +4083,8 @@ function build() {
       queueList.appendChild(row);
     });
   }
+  // Expose so the global addCurrentToQueue can refresh the UI
+  state._queueRefresh = renderQueueList;
 
   let batchExporting = false;
   async function batchExport(format, asZip) {
