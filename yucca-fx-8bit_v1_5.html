@@ -169,7 +169,18 @@
   .brand-sub b { color: var(--green); animation: blink 1s steps(1) infinite; }
   @keyframes blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
 
-  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  /* Visible thin vertical divider between functional groups in the header.
+     Helps separate destructive (RANDOM/INIT) from safe (PLAY/SHARE) clusters
+     so users don't accidentally hit a wrong button across a boundary. */
+  .header-divider {
+    width: 2px; height: 24px; background: var(--border); flex-shrink: 0;
+    margin: 0 2px;
+  }
+  /* Pushes the trailing button (RANDOM) to the far right so it can't be
+     hit by accident when reaching for PLAY on the left. Collapses on
+     narrow screens where everything wraps anyway. */
+  .header-spacer { flex: 1; min-width: 24px; }
 
   /* STATUS BAR */
   .status {
@@ -177,8 +188,20 @@
     margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
     font-size: 14px; gap: 10px;
   }
-  .status-msg { color: var(--green); }
+  .status-msg { color: var(--green); flex-shrink: 0; }
+  .status-tip {
+    color: var(--cyan); font-size: 12px; flex: 1; text-align: right;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0; opacity: 0; transition: opacity 0.12s;
+    font-family: var(--term); letter-spacing: 0.04em;
+  }
+  .status-tip.show { opacity: 1; }
   .status-version { color: var(--dim); flex-shrink: 0; }
+  /* On narrow screens, hide the status-tip line entirely — the title attr
+     still works on hover/long-press, and there isn't room for both lines */
+  @media (max-width: 540px) {
+    .status-tip { display: none; }
+  }
 
   /* MAIN GRID */
   .main-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -363,6 +386,17 @@
   }
   .pixel-btn.small { font-size: 9px; padding: 9px 11px; min-height: 38px; }
   .pixel-btn.full { width: 100%; }
+  /* Half-size button — slim and short, used for the BACK undo button so
+     it sits between PLAY and RANDOM without competing for attention */
+  .pixel-btn.half {
+    font-size: 8px; padding: 4px 8px; min-height: 28px;
+    box-shadow: 2px 2px 0 0 var(--ink); letter-spacing: 0.04em;
+    gap: 4px;
+  }
+  .pixel-btn.half svg { width: 11px; height: 11px; }
+  .pixel-btn.half:active {
+    transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--ink);
+  }
   .pixel-btn:active {
     transform: translate(3px, 3px); box-shadow: 1px 1px 0 0 var(--ink);
   }
@@ -649,7 +683,8 @@
     <!-- STATUS -->
     <div class="status">
       <span class="status-msg" id="statusMsg">&gt; READY. PRESS [SPACE] TO PLAY · [R] TO RANDOMIZE</span>
-      <span class="status-version">v1.4</span>
+      <span class="status-tip" id="statusTip"></span>
+      <span class="status-version">v1.5</span>
     </div>
 
     <!-- TOP OUTPUT WAVEFORM -->
@@ -1746,6 +1781,7 @@ function applyVariation(patch, trackIdx, stepIdx, variation) {
 
 const state = {
   patch: initPatch(),
+  patchHistory: [], // stack of previous patches for BACK button (capped at HISTORY_MAX)
   presets: [],
   audioCtx: null,
   masterChain: null, // { gain, analyser } — built lazily in ensureCtx
@@ -1760,6 +1796,7 @@ const state = {
   suppressedConfirms: {},
 };
 const QUEUE_MAX = 20;
+const HISTORY_MAX = 32;
 
 const subscribers = []; // [{ refresh: () => void }]
 function subscribe(s) { subscribers.push(s); return s; }
@@ -1779,9 +1816,20 @@ function notifyLive(path) {
       try { l.fn(); } catch {}
     }
   }
+  scheduleAutosave();
 }
 
-function setPatch(newPatch) {
+function setPatch(newPatch, opts) {
+  // Push the OUTGOING patch onto history (so BACK restores it). Pass
+  // { skipHistory: true } when restoring from history itself, loading from
+  // URL hash on boot, or applying autosaved state — none of those should
+  // pollute the history stack.
+  if (!opts || !opts.skipHistory) {
+    if (state.patch) {
+      state.patchHistory.push(JSON.parse(JSON.stringify(state.patch)));
+      if (state.patchHistory.length > HISTORY_MAX) state.patchHistory.shift();
+    }
+  }
   // Merge with defaults so old presets / factory / random patches without new fields don't crash
   const def = initPatch();
   const incoming = JSON.parse(JSON.stringify(newPatch));
@@ -1799,7 +1847,9 @@ function setPatch(newPatch) {
     circuitBent: { ...def.circuitBent, ...(incoming.circuitBent || {}) },
     mutantDelay: { ...def.mutantDelay, ...(incoming.mutantDelay || {}) },
   };
+  if (state._backBtnRefresh) state._backBtnRefresh();
   refreshAll();
+  scheduleAutosave();
 }
 
 // Snapshot just the sequencer state (tracks + variation + bpm) so presets
@@ -2113,6 +2163,41 @@ function flash(msg) {
   }, 2000);
 }
 
+// Wire a control with a hover/focus/touch tooltip. Sets the native title attr
+// (for desktop browser tooltips + accessibility) AND piped to the .status-tip
+// span at the top of the screen so it's visible without waiting for the
+// browser tooltip delay. Touch users get the status-tip on press.
+// Pass `text` as a short, action-oriented description — what does it DO.
+function tip(node, text) {
+  if (!node || !text) return node;
+  node.setAttribute('title', text);
+  node.setAttribute('aria-label', text);
+  const show = () => {
+    const el = document.getElementById('statusTip');
+    if (!el) return;
+    el.textContent = '· ' + text;
+    el.classList.add('show');
+  };
+  const hide = () => {
+    const el = document.getElementById('statusTip');
+    if (!el) return;
+    el.classList.remove('show');
+    // small delay before clearing text so fade-out doesn't blank mid-fade
+    setTimeout(() => { if (!el.classList.contains('show')) el.textContent = ''; }, 200);
+  };
+  node.addEventListener('mouseenter', show);
+  node.addEventListener('mouseleave', hide);
+  node.addEventListener('focus', show);
+  node.addEventListener('blur', hide);
+  // Touch — show briefly on touchstart, auto-hide after 1.6s
+  node.addEventListener('touchstart', () => {
+    show();
+    clearTimeout(node._tipTimer);
+    node._tipTimer = setTimeout(hide, 1600);
+  }, { passive: true });
+  return node;
+}
+
 // Global "add current patch to export queue" — used by the EXPORT popup's
 // own button AND by the scope-bar shortcut button. Refreshes the queue UI
 // if it has been built (after build() has run).
@@ -2126,6 +2211,7 @@ function addCurrentToQueue() {
     name: state.patch.name || 'sfx',
     patch: JSON.parse(JSON.stringify(state.patch)),
   });
+  saveQueue();
   if (state._queueRefresh) state._queueRefresh();
   flash('ADDED TO QUEUE [' + state.export.queue.length + '/' + QUEUE_MAX + ']');
   return true;
@@ -2226,6 +2312,7 @@ function makeSection(title, accentColor, options) {
   let toggleEl = null;
   if (opts.onOff) {
     toggleEl = el('button', { class: 'section-toggle' }, 'OFF');
+    tip(toggleEl, 'Toggle ' + title + ' on/off  ·  preserves your settings while bypassed');
     function syncToggle() {
       const on = !!opts.onOff.isOn();
       toggleEl.textContent = on ? 'ON' : 'OFF';
@@ -2676,9 +2763,9 @@ function _readableTextOn(bg) {
   return _brightness(bg) > 140 ? C.ink : C.text;
 }
 
-function makePixelButton({ label, icon, accent = C.yellow, onClick, small = false, full = false }) {
+function makePixelButton({ label, icon, accent = C.yellow, onClick, small = false, full = false, half = false }) {
   const btn = el('button', {
-    class: 'pixel-btn' + (small?' small':'') + (full?' full':''),
+    class: 'pixel-btn' + (small?' small':'') + (full?' full':'') + (half?' half':''),
     style: { background: accent, color: _readableTextOn(accent) }
   });
   if (icon) btn.innerHTML = icon;
@@ -2695,6 +2782,7 @@ const ICONS = {
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>',
   add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>',
 };
 
 /* ----- ADSR DISPLAY (canvas, pointer-events) ----- */
@@ -2943,7 +3031,12 @@ window.addEventListener('resize', drawScope);
 /* ===========================================================
    PRESETS (localStorage)
    =========================================================== */
+/* ===========================================================
+   PERSISTENCE
+   =========================================================== */
 const STORAGE_KEY = 'yuccafx:presets:v1';
+const QUEUE_STORAGE_KEY = 'yuccafx:queue:v1';
+const PATCH_STORAGE_KEY = 'yuccafx:current:v1';
 
 function loadPresets() {
   try {
@@ -2956,26 +3049,99 @@ function savePresets() {
   catch (e) { console.warn('Could not save presets:', e); }
 }
 
+// Queue persistence — saved as patches+names only, no transient export state
+function loadQueue() {
+  try {
+    const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) state.export.queue = parsed.slice(0, QUEUE_MAX);
+  } catch { /* ignore */ }
+}
+function saveQueue() {
+  try { localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(state.export.queue)); }
+  catch (e) { console.warn('Could not save queue:', e); }
+}
+
+// Current-patch autosave — debounced because it fires on every slider drag.
+// Saves the patch + sequencer snapshot together so leaving the page mid-edit
+// restores the exact working state on next visit.
+let _autosaveTimer = null;
+function scheduleAutosave() {
+  if (_autosaveTimer) return;
+  _autosaveTimer = setTimeout(() => {
+    _autosaveTimer = null;
+    try {
+      const blob = {
+        patch: state.patch,
+        sequencer: (typeof snapshotSequencer === 'function') ? snapshotSequencer() : null,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(PATCH_STORAGE_KEY, JSON.stringify(blob));
+    } catch (e) { /* quota exceeded etc. — not fatal */ }
+  }, 400);
+}
+function loadAutosave() {
+  try {
+    const raw = localStorage.getItem(PATCH_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
 /* ===========================================================
    BUILD UI
    =========================================================== */
 function build() {
-  /* Top menu dropdowns (factory / presets / export panels live in here) */
-  const factoryDropdown = makeDropdown('FACTORY', C.green, p => { p._mountFor = 'factory'; });
+  /* Top menu dropdowns (presets includes FACTORY at the top, then user bank) */
   const presetsDropdown = makeDropdown('PRESETS', C.cyan,  p => { p._mountFor = 'presets'; });
   const exportDropdown  = makeDropdown('EXPORT',  C.yellow, p => { p._mountFor = 'export'; });
-  const factoryPopup = factoryDropdown.popup;
   const presetsPopup = presetsDropdown.popup;
   const exportPopup  = exportDropdown.popup;
 
   /* Header buttons */
   const headerActions = document.getElementById('headerActions');
-  // Action buttons first (most-used)
-  headerActions.appendChild(makePixelButton({
+
+  // PLAY — leftmost, isolated by a divider so the most-used button has
+  // its own zone and won't be accidentally double-tapped near other actions
+  headerActions.appendChild(tip(makePixelButton({
     label: 'PLAY', icon: ICONS.play, accent: C.green, small: true,
     onClick: playSound,
-  }));
-  headerActions.appendChild(makePixelButton({
+  }), 'Play the current patch  ·  hotkey: SPACE'));
+
+  headerActions.appendChild(el('div', { class: 'header-divider' }));
+
+  // BACK — half-size, slotted between PLAY and RANDOM. Restores the previous
+  // patch state, keyed off setPatch history.
+  const backBtn = tip(makePixelButton({
+    label: 'BACK', icon: ICONS.back, accent: C.cyan, small: true, half: true,
+    onClick: () => {
+      if (state.patchHistory.length === 0) {
+        flash('NOTHING TO GO BACK TO');
+        return;
+      }
+      const prev = state.patchHistory.pop();
+      // Restore via setPatch with skipHistory so we don't push the current
+      // (which is the post-change patch) onto the stack — that would create
+      // a redo cycle the user didn't ask for
+      setPatch(prev, { skipHistory: true });
+      if (state._backBtnRefresh) state._backBtnRefresh();
+      flash('REVERTED');
+    },
+  }), 'Restore the previous patch  ·  undo factory/preset/random/init changes');
+  function refreshBackBtn() {
+    const has = state.patchHistory.length > 0;
+    backBtn.disabled = !has;
+    backBtn.style.opacity = has ? '1' : '0.4';
+    backBtn.style.cursor = has ? 'pointer' : 'not-allowed';
+  }
+  state._backBtnRefresh = refreshBackBtn;
+  refreshBackBtn();
+  headerActions.appendChild(backBtn);
+
+  // RANDOM — adjacent to BACK so the undo flow is right next to the action
+  // most likely to need undoing
+  headerActions.appendChild(tip(makePixelButton({
     label: 'RANDOM', icon: ICONS.shuffle, accent: C.magenta, small: true,
     onClick: () => {
       showConfirm({
@@ -2989,25 +3155,15 @@ function build() {
         onConfirm: () => { setPatch(randomPatch()); flash('RANDOMIZED'); },
       });
     },
-  }));
-  // Management dropdowns next
-  headerActions.appendChild(factoryDropdown.element);
-  headerActions.appendChild(presetsDropdown.element);
-  headerActions.appendChild(exportDropdown.element);
-  headerActions.appendChild(makePixelButton({
-    label: 'SHARE', icon: ICONS.share, accent: C.cyan, small: true,
-    onClick: async () => {
-      const url = 'https://yuccabucca.com/yucca-fx#' + patchToHash(state.patch);
-      try {
-        await navigator.clipboard.writeText(url);
-        flash('URL COPIED');
-      } catch {
-        window.history.replaceState(null, '', '#' + patchToHash(state.patch));
-        flash('URL UPDATED');
-      }
-    },
-  }));
-  headerActions.appendChild(makePixelButton({
+  }), 'Generate a random patch  ·  hotkey: R  ·  use BACK to undo'));
+
+  headerActions.appendChild(el('div', { class: 'header-divider' }));
+
+  // Management dropdowns + utility buttons
+  headerActions.appendChild(tip(presetsDropdown.element, 'Browse factory sounds and your saved presets'));
+  headerActions.appendChild(tip(exportDropdown.element, 'Export current sound  ·  manage queue  ·  batch + zip downloads'));
+
+  headerActions.appendChild(tip(makePixelButton({
     label: 'INIT', icon: ICONS.init, accent: C.bg3, small: true,
     onClick: () => {
       showConfirm({
@@ -3019,7 +3175,21 @@ function build() {
         onConfirm: () => { setPatch(initPatch()); flash('INITIALIZED'); },
       });
     },
-  }));
+  }), 'Reset patch to default INIT state'));
+
+  headerActions.appendChild(tip(makePixelButton({
+    label: 'SHARE', icon: ICONS.share, accent: C.cyan, small: true,
+    onClick: async () => {
+      const url = 'https://yuccabucca.com/yucca-fx#' + patchToHash(state.patch);
+      try {
+        await navigator.clipboard.writeText(url);
+        flash('URL COPIED');
+      } catch {
+        window.history.replaceState(null, '', '#' + patchToHash(state.patch));
+        flash('URL UPDATED');
+      }
+    },
+  }), 'Copy a shareable URL of this exact patch to clipboard'));
 
   /* Main grid */
   const grid = document.getElementById('mainGrid');
@@ -3083,6 +3253,7 @@ function build() {
   volSlider.appendChild(volFill);
   volSlider.appendChild(volThumb);
   const volValue = el('span', { class: 'master-vol-value' }, '80%');
+  tip(volSlider, 'Master volume — affects live preview only, not exports');
   volWrap.appendChild(volSlider);
   volWrap.appendChild(volValue);
 
@@ -3135,10 +3306,11 @@ function build() {
   masterCtrls.appendChild(clipLED);
 
   // Quick-queue button — adds current patch to export queue without opening the menu
-  const quickQueueBtn = el('button', { class: 'quick-queue-btn', title: 'Add current patch to export queue' });
+  const quickQueueBtn = el('button', { class: 'quick-queue-btn' });
   quickQueueBtn.appendChild(el('span', { class: 'quick-queue-icon' }, '+Q'));
   const quickQueueCount = el('span', { class: 'quick-queue-count' }, '0');
   quickQueueBtn.appendChild(quickQueueCount);
+  tip(quickQueueBtn, 'Add current patch to export queue (max ' + QUEUE_MAX + ')');
   function syncQuickQueueCount() {
     const n = state.export.queue.length;
     quickQueueCount.textContent = String(n);
@@ -3313,9 +3485,10 @@ function build() {
   // FB FADE — armed by default, tames runaway feedback by ramping the FB gain down
   const dlFbRow = el('div', { class: 'noise-mode-row', style: { borderTop: 'none', marginTop: '0', paddingTop: '0' }});
   dlFbRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'FEEDBACK SAFETY:'));
-  dlFbRow.appendChild(makeBoolPill('FB FADE',
+  dlFbRow.appendChild(tip(makeBoolPill('FB FADE',
     () => state.patch.delay.feedbackFade,
-    v => state.patch.delay.feedbackFade = v));
+    v => state.patch.delay.feedbackFade = v),
+    'When ON, high feedback rings out briefly then fades — prevents runaway echoes'));
   delaySection.body.appendChild(dlFbRow);
   delaySection.body.appendChild(makeSlider({
     label:'MIX', path:'delay.mix', min:0, max:1, accent:C.yellow, format:v=>Math.round(v*100)+'%'
@@ -3365,9 +3538,10 @@ function build() {
   // FB FADE — armed by default
   const rvFbRow = el('div', { class: 'noise-mode-row', style: { borderTop: 'none', marginTop: '0', paddingTop: '0' }});
   rvFbRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'FEEDBACK SAFETY:'));
-  rvFbRow.appendChild(makeBoolPill('FB FADE',
+  rvFbRow.appendChild(tip(makeBoolPill('FB FADE',
     () => state.patch.retroVerb.feedbackFade,
-    v => state.patch.retroVerb.feedbackFade = v));
+    v => state.patch.retroVerb.feedbackFade = v),
+    'When ON, high feedback rings out briefly then fades — prevents runaway slapback'));
   retroSection.body.appendChild(rvFbRow);
   retroSection.body.appendChild(makeSlider({
     label:'TONE', path:'retroVerb.tone', min:0, max:1, accent:C.cyan,
@@ -3463,8 +3637,10 @@ function build() {
   // OSC SWAP noise-mode mutex toggles
   const mdNoiseRow = el('div', { class: 'noise-mode-row' });
   mdNoiseRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'OSC SWAP MODE:'));
-  const mdNoNoise = el('button', { class: 'pill-toggle' }, 'NO NOISE');
-  const mdOnlyNoise = el('button', { class: 'pill-toggle' }, 'ONLY NOISE');
+  const mdNoNoise = tip(el('button', { class: 'pill-toggle' }, 'NO NOISE'),
+    'Restrict OSC SWAP to pulse / triangle / sawtooth — never picks noise');
+  const mdOnlyNoise = tip(el('button', { class: 'pill-toggle' }, 'ONLY NOISE'),
+    'Force every cascade copy to noise — OSC SWAP randomizes the kind of noise');
   mdNoNoise.addEventListener('click', () => {
     state.patch.mutantDelay.noNoise = !state.patch.mutantDelay.noNoise;
     if (state.patch.mutantDelay.noNoise) state.patch.mutantDelay.onlyNoise = false;
@@ -3531,6 +3707,7 @@ function build() {
       else startSequencer();
     }
   });
+  tip(playSeqBtn, 'Start / stop the euclidean sequencer');
   transport.appendChild(playSeqBtn);
   const bpmWrap = el('div', { class: 'seq-bpm-wrap' });
   const bpmSlider = makeCustomSlider({
@@ -3541,8 +3718,9 @@ function build() {
   });
   sequencerSubs._bpmUpdate = bpmSlider.refresh;
   bpmWrap.appendChild(bpmSlider.element);
+  tip(bpmWrap, 'Tempo (40–240 BPM, sequencer steps are 16th notes)');
   transport.appendChild(bpmWrap);
-  transport.appendChild(makePixelButton({
+  transport.appendChild(tip(makePixelButton({
     label: 'RND SEQ', icon: ICONS.shuffle, accent: C.magenta, small: true,
     onClick: () => {
       state.sequencer.tracks.forEach(t => {
@@ -3555,11 +3733,11 @@ function build() {
       sequencerSubs.refresh && sequencerSubs.refresh();
       flash('SEQUENCE RANDOMIZED');
     }
-  }));
-  transport.appendChild(makePixelButton({
+  }), 'Randomize all 3 sequencer tracks (pulses / steps / pitch)'));
+  transport.appendChild(tip(makePixelButton({
     label: '?', accent: C.cyan, small: true,
     onClick: () => showSequencerHelp(),
-  }));
+  }), 'Sequencer quick guide  ·  what everything does'));
   tracksWrap.appendChild(transport);
 
   // ===== SEQUENCER RECORDING ROW =====
@@ -3573,6 +3751,7 @@ function build() {
     setValue: v => { state.export.seqRec.cycles = v; updateRecInfo(); },
     format: v => Math.round(v) + 'x',
   });
+  tip(cyclesWrap, 'How many full pattern cycles to record (loops cleanly)');
   cyclesWrap.appendChild(cyclesSlider.element);
   recRow.appendChild(cyclesWrap);
 
@@ -3584,8 +3763,8 @@ function build() {
     label: 'REC MP3', icon: ICONS.download, accent: C.yellow, small: true,
     onClick: () => recordSequencer('mp3'),
   });
-  recRow.appendChild(recWavBtn);
-  recRow.appendChild(recMp3Btn);
+  recRow.appendChild(tip(recWavBtn, 'Render the sequencer to a WAV file (uses Cycles + Mono / Normalize / Limiter from Export options)'));
+  recRow.appendChild(tip(recMp3Btn, 'Render the sequencer to an MP3 file'));
   const recInfo = el('span', { class: 'seq-rec-info' });
   recRow.appendChild(recInfo);
   tracksWrap.appendChild(recRow);
@@ -3719,8 +3898,10 @@ function build() {
   // OSC SWAP noise-mode mutex toggles
   const varNoiseRow = el('div', { class: 'noise-mode-row' });
   varNoiseRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'OSC SWAP MODE:'));
-  const varNoNoise = el('button', { class: 'pill-toggle' }, 'NO NOISE');
-  const varOnlyNoise = el('button', { class: 'pill-toggle' }, 'ONLY NOISE');
+  const varNoNoise = tip(el('button', { class: 'pill-toggle' }, 'NO NOISE'),
+    'Variation OSC SWAP avoids the noise oscillator');
+  const varOnlyNoise = tip(el('button', { class: 'pill-toggle' }, 'ONLY NOISE'),
+    'Variation forces every sequencer hit to noise (great for hat patterns)');
   function syncVarNoiseButtons() {
     const v = state.sequencer.variation;
     varNoNoise.classList.toggle('on', !!v.noNoise);
@@ -3743,10 +3924,10 @@ function build() {
   varSec.appendChild(varNoiseRow);
   syncVarNoiseButtons();
 
-  varSec.appendChild(makePixelButton({
+  varSec.appendChild(tip(makePixelButton({
     label: 'RESEED', icon: ICONS.shuffle, accent: C.purple, small: true,
     onClick: () => { state.sequencer.variation.seed = Math.random(); flash('VARIATION RESEEDED'); }
-  }));
+  }), 'Roll a new deterministic variation pattern  ·  same pattern, different mutations'));
   tracksWrap.appendChild(varSec);
 
   seqGrid.appendChild(tracksWrap);
@@ -3788,7 +3969,7 @@ function build() {
     factoryGrid.appendChild(btn);
   });
   factorySec.body.appendChild(factoryGrid);
-  factoryPopup.appendChild(factorySec.element);
+  presetsPopup.appendChild(factorySec.element);
 
   /* PRESETS */
   const presetSec = makeSection('PRESET BANK', C.cyan);
@@ -3803,9 +3984,10 @@ function build() {
   nameInput.addEventListener('input', () => {
     nameInput.value = nameInput.value.toUpperCase().slice(0, 8);
   });
+  tip(nameInput, 'Name your patch (8 characters max, auto-uppercased)');
   nameWrap.appendChild(nameInput);
   formWrap.appendChild(nameWrap);
-  formWrap.appendChild(makePixelButton({
+  formWrap.appendChild(tip(makePixelButton({
     label: 'SAVE', icon: ICONS.save, accent: C.green, small: true,
     onClick: () => {
       const name = (nameInput.value || state.patch.name || 'PRESET').toUpperCase().slice(0, 8);
@@ -3820,7 +4002,7 @@ function build() {
       renderPresetGrid();
       flash('SAVED >> ' + name);
     }
-  }));
+  }), 'Save current patch + sequencer state to your presets (max 24, oldest drops)'));
   presetSec.body.appendChild(formWrap);
 
   const presetGridWrap = el('div');
@@ -3866,9 +4048,12 @@ function build() {
   // Export option toggles (mono + normalize)
   const exportOptsRow = el('div', { class: 'noise-mode-row', style: { borderTop: 'none', marginTop: '0', paddingTop: '0' }});
   exportOptsRow.appendChild(el('span', { class: 'sub-label', style: { color: C.dim }}, 'EXPORT OPTS:'));
-  const monoBtn = el('button', { class: 'pill-toggle' }, 'MONO');
-  const normBtn = el('button', { class: 'pill-toggle' }, 'NORMALIZE -6dB');
-  const limiterBtn = el('button', { class: 'pill-toggle' }, 'LIMITER');
+  const monoBtn = tip(el('button', { class: 'pill-toggle' }, 'MONO'),
+    'Sum to mono on export (off = stereo, hears reverb width)');
+  const normBtn = tip(el('button', { class: 'pill-toggle' }, 'NORMALIZE -6dB'),
+    'Scale exported peak to -6dBFS (consistent loudness across batch)');
+  const limiterBtn = tip(el('button', { class: 'pill-toggle' }, 'LIMITER'),
+    'Brick-wall limiter at -1dBFS  ·  prevents clipping  ·  recommended ON');
   function syncExportButtons() {
     monoBtn.classList.toggle('on', !!state.export.mono);
     normBtn.classList.toggle('on', !!state.export.normalize);
@@ -3980,12 +4165,12 @@ function build() {
         title: '> CLEAR QUEUE?',
         message: 'Remove all ' + state.export.queue.length + ' items from the export queue?',
         confirmLabel: 'CLEAR', cancelLabel: 'KEEP', accent: C.red,
-        onConfirm: () => { state.export.queue = []; renderQueueList(); flash('QUEUE CLEARED'); },
+        onConfirm: () => { state.export.queue = []; saveQueue(); renderQueueList(); flash('QUEUE CLEARED'); },
       });
     },
   });
-  queueAddRow.appendChild(queueAddBtn);
-  queueAddRow.appendChild(queueClearBtn);
+  queueAddRow.appendChild(tip(queueAddBtn, 'Add current patch to export queue (max ' + QUEUE_MAX + ')  ·  same as the +Q button on the scope'));
+  queueAddRow.appendChild(tip(queueClearBtn, 'Empty the entire export queue'));
   queueSec.appendChild(queueAddRow);
 
   // Batch rename row
@@ -4002,12 +4187,14 @@ function build() {
       state.export.queue.forEach((item, i) => {
         item.name = base + '_' + String(i + 1).padStart(pad, '0');
       });
+      saveQueue();
       renderQueueList();
       flash('RENAMED ' + state.export.queue.length + ' ITEMS');
     },
   });
+  tip(renameInput, 'Base name for batch rename — items become base_01, base_02, ...');
   renameRow.appendChild(renameInput);
-  renameRow.appendChild(renameBtn);
+  renameRow.appendChild(tip(renameBtn, 'Rename all queued items to base_01, base_02, ...'));
   queueSec.appendChild(renameRow);
 
   // Queue list (rendered dynamically)
@@ -4034,8 +4221,8 @@ function build() {
     label: 'BATCH MP3', accent: C.yellow, full: true,
     onClick: () => batchExport('mp3', false),
   });
-  batchRow.appendChild(batchWavBtn);
-  batchRow.appendChild(batchMp3Btn);
+  batchRow.appendChild(tip(batchWavBtn, 'Download all queued items as separate WAV files'));
+  batchRow.appendChild(tip(batchMp3Btn, 'Download all queued items as separate MP3 files'));
   queueSec.appendChild(batchRow);
 
   // Batch zip buttons — bundled in a single .zip
@@ -4048,8 +4235,8 @@ function build() {
     label: 'ZIP (MP3)', accent: C.green, full: true,
     onClick: () => batchExport('mp3', true),
   });
-  zipRow.appendChild(zipWavBtn);
-  zipRow.appendChild(zipMp3Btn);
+  zipRow.appendChild(tip(zipWavBtn, 'Bundle all queued items into a single .zip of WAVs'));
+  zipRow.appendChild(tip(zipMp3Btn, 'Bundle all queued items into a single .zip of MP3s'));
   queueSec.appendChild(zipRow);
 
   exportSec.body.appendChild(queueSec);
@@ -4072,11 +4259,12 @@ function build() {
       const row = el('div', { class: 'queue-item' });
       row.appendChild(el('span', { class: 'queue-item-num' }, String(i + 1).padStart(2, '0')));
       const nameInput = el('input', { type: 'text', class: 'queue-item-name', value: item.name });
-      nameInput.addEventListener('input', e => { item.name = e.target.value; });
+      nameInput.addEventListener('input', e => { item.name = e.target.value; saveQueue(); });
       row.appendChild(nameInput);
       const removeBtn = el('button', { class: 'queue-item-remove', title: 'Remove' }, '×');
       removeBtn.addEventListener('click', () => {
         state.export.queue.splice(i, 1);
+        saveQueue();
         renderQueueList();
       });
       row.appendChild(removeBtn);
@@ -4146,14 +4334,31 @@ function build() {
 
   /* Init */
   loadPresets();
+  loadQueue();
+  if (state._queueRefresh) state._queueRefresh();
   renderPresetGrid();
 
-  // load patch from URL hash if present
+  // Patch restoration priority: URL hash > localStorage autosave > default INIT
+  let loaded = false;
   if (window.location.hash) {
     const p = hashToPatch(window.location.hash.slice(1));
     if (p) {
-      state.patch = p;
+      // Use setPatch with skipHistory so the boot doesn't pollute the BACK stack
+      setPatch(p, { skipHistory: true });
       flash('PATCH LOADED FROM URL');
+      loaded = true;
+    }
+  }
+  if (!loaded) {
+    const saved = loadAutosave();
+    if (saved && saved.patch) {
+      setPatch(saved.patch, { skipHistory: true });
+      if (saved.sequencer && typeof applySequencerSnapshot === 'function') {
+        applySequencerSnapshot(saved.sequencer);
+      }
+      // No flash here — silently restoring is the expected behavior; loud
+      // notifications about it would feel noisy on every page load
+      loaded = true;
     }
   }
 
@@ -4166,7 +4371,19 @@ function build() {
 document.addEventListener('keydown', e => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if (e.code === 'Space') { e.preventDefault(); playSound(); }
-  else if (e.key === 'r' || e.key === 'R') { setPatch(randomPatch()); flash('RANDOMIZED'); }
+  else if (e.key === 'r' || e.key === 'R') {
+    // Mirror the RANDOM button's confirm flow so the hotkey isn't a sneaky
+    // bypass of the "are you sure" modal — uses the same suppression key,
+    // so once the user opts out for the session it works as a one-tap shortcut
+    showConfirm({
+      title: '> RANDOMIZE PATCH?',
+      message: 'This will replace your current patch with a new random sound. If you have not saved your current patch, it will be lost.',
+      confirmLabel: 'RANDOMIZE', cancelLabel: 'KEEP IT', accent: C.magenta,
+      dontShowAgainKey: 'random',
+      dontShowAgainLabel: "DON'T SHOW AGAIN THIS SESSION",
+      onConfirm: () => { setPatch(randomPatch()); flash('RANDOMIZED'); },
+    });
+  }
 });
 
 /* Boot */
